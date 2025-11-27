@@ -96,23 +96,62 @@ movieId,title,genres
 ...
 ```
 
-### 5. Run Locally
+## Running Keycloak on Docker
 
 Runninc keycloack on docker localhost
 ```bash
 docker run -p 127.0.0.1:8080:8080 -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:26.4.6 start-dev
 ```
 
-Getting a bearer token
+## Getting a Bearer Token from Keycloak
+
+### Option 1: Client Credentials Flow (Recommended for APIs) ✅
+
+This flow is perfect for service-to-service authentication and doesn't require user credentials:
+
 ```bash
-curl -X POST "http://localhost:8080/realms/myrealm/protocol/openid-connect/token" \
+curl -X POST "http://localhost:8080/realms/movie-realm/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=rozetta" \
-  -d "client_secret=B3Gei1LABwOS9UDD6luVKnX18248TnwZ" \
-  -d "grant_type=password" \
-  -d "username=rozetta" \
-  -d "password=123456"
+  -d "client_id=movie-api-client" \
+  -d "client_secret=z3q2k04C4Vtw2iqC2eqXSyNdlZePpi5G" \
+  -d "grant_type=client_credentials"
 ```
+
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "expires_in": 300,
+  "token_type": "Bearer"
+}
+```
+
+### Option 2: Resource Owner Password Credentials Flow (User Login)
+
+If you need to authenticate as a specific user:
+
+```bash
+curl -X POST "http://localhost:8080/realms/movie-realm/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "client_id=movie-api-client" \
+  -d "client_secret=z3q2k04C4Vtw2iqC2eqXSyNdlZePpi5G" \
+  -d "grant_type=password" \
+  -d "username=movieuser" \
+  -d "password=moviepassword"
+```
+
+**Recommended:** Use **Option 1 (Client Credentials)** for API authentication - it's more secure and doesn't depend on user account state.
+
+## Admin Console
+```bash
+# View in admin console
+http://localhost:8081/admin/master/console/
+```
+
+**Credentials:**
+- Username: admin
+- Password: admin
+- Realm to view: movie-realm
 
 ```bash
 uvicorn app.main:app --reload

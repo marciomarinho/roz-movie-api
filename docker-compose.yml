@@ -1,0 +1,99 @@
+services:
+  # PostgreSQL database for FastAPI app
+  db:
+    image: postgres:15-alpine
+    container_name: movie_api_db
+    environment:
+      POSTGRES_DB: movie_api_db
+      POSTGRES_USER: movie_api_user
+      POSTGRES_PASSWORD: movie_api_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U movie_api_user -d movie_api_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - movie_net
+    restart: unless-stopped
+
+  # Keycloak identity and access management server
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    container_name: movie_api_keycloak
+    command: ["start-dev", "--http-port=8080"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+    ports:
+      - "8080:8080"
+    networks:
+      - movie_net
+    restart: unless-stopped
+
+  # One-shot Keycloak setup service
+  keycloak-setup:
+    image: quay.io/keycloak/keycloak:24.0.5
+    container_name: movie_api_keycloak_setup
+    entrypoint: /bin/sh
+    command: ["-c", "/scripts/keycloak-setup.sh"]
+    volumes:
+      - ./scripts/keycloak-setup.sh:/scripts/keycloak-setup.sh:ro
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KEYCLOAK_REALM: movie-realm
+      KEYCLOAK_CLIENT_ID: movie-api-client
+      KEYCLOAK_TEST_USERNAME: movieuser
+      KEYCLOAK_TEST_PASSWORD: moviepassword
+    depends_on:
+      keycloak:
+        condition: service_started
+    extra_hosts:
+      - "keycloak:host-gateway"
+    networks:
+      - movie_net
+    restart: "no"
+
+  # FastAPI application
+  # app:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: movie_api_app
+  #   command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     DB_HOST: db
+  #     DB_PORT: "5432"
+  #     DB_NAME: movie_api_db
+  #     DB_USER: movie_api_user
+  #     DB_PASSWORD: movie_api_password
+  #     KEYCLOAK_URL: http://keycloak:8080
+  #     KEYCLOAK_REALM: movie-realm
+  #     KEYCLOAK_CLIENT_ID: movie-api-client
+  #     PYTHONUNBUFFERED: "1"
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     keycloak:
+  #       condition: service_healthy
+  #     keycloak-setup:
+  #       condition: service_completed_successfully
+  #   networks:
+  #     - movie_net
+  #   restart: unless-stopped
+
+networks:
+  movie_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
