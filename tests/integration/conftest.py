@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.core.database import DatabasePool
-from app.core.integration_test_config import IntegrationTestSettings
+from tests.integration.config import IntegrationTestSettings
 from scripts.init_db import initialize_database
 
 
