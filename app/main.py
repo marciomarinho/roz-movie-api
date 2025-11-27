@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import routes_health, routes_movies
 from app.core.config import get_settings
+from app.core.database import DatabasePool
 from app.core.logging_config import configure_logging
 from app.repositories.movies_repository import MoviesRepository
 from app.services.movies_service import MoviesService
@@ -51,13 +52,17 @@ async def lifespan(app: FastAPI):
     )
 
     try:
-        repository = MoviesRepository(
+        # Initialize shared connection pool
+        DatabasePool.initialize(
             host=settings.db_host,
             port=settings.db_port,
             dbname=settings.db_name,
             user=settings.db_user,
             password=settings.db_password,
         )
+        
+        # Create repository (uses the initialized pool)
+        repository = MoviesRepository()
         movies_service = MoviesService(repository)
         logger.info(f"Application started with {len(repository.movies)} movies loaded")
     except Exception as e:
@@ -68,6 +73,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutting down")
+    DatabasePool.close()
+    logger.info("Database connection pool closed")
 
 
 def create_app() -> FastAPI:

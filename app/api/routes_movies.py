@@ -26,7 +26,7 @@ def get_movies_service() -> MoviesService:
 @router.get("/movies", response_model=PaginatedMovies)
 async def list_movies(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1),
     title: Optional[str] = Query(None),
     genre: Optional[str] = Query(None),
     year: Optional[int] = Query(None),
@@ -54,7 +54,7 @@ async def list_movies(
 async def search_movies(
     q: str = Query(..., description="Search query for movie title"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1),
     genre: Optional[str] = Query(None),
     year: Optional[int] = Query(None),
     service: MoviesService = Depends(get_movies_service),

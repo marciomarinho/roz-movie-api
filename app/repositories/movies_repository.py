@@ -5,41 +5,33 @@ from typing import List, Optional, Tuple
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+from app.core.database import DatabasePool
 from app.models.movie import Movie
 
 logger = logging.getLogger(__name__)
 
 
 class MoviesRepository:
-    """Repository for managing movie data from PostgreSQL database."""
+    """Repository for managing movie data from PostgreSQL database.
+    
+    Uses a shared connection pool managed by DatabasePool for efficient
+    resource utilization across all repositories.
+    """
 
-    def __init__(
-        self,
-        host: str = "localhost",
-        port: int = 5432,
-        dbname: str = "postgres",
-        user: str = "postgres",
-        password: str = "mysecretpassword",
-    ) -> None:
-        """Initialize the repository and connect to PostgreSQL.
+    def __init__(self) -> None:
+        """Initialize the repository.
 
-        Args:
-            host: PostgreSQL host (default: localhost)
-            port: PostgreSQL port (default: 5432)
-            dbname: PostgreSQL database name (default: postgres)
-            user: PostgreSQL user (default: postgres)
-            password: PostgreSQL password
+        The repository uses a shared connection pool. Ensure DatabasePool
+        has been initialized before creating repository instances.
 
         Raises:
-            psycopg2.Error: If connection to database fails.
+            RuntimeError: If DatabasePool is not initialized.
         """
-        self.conn_params = {
-            "host": host,
-            "port": port,
-            "dbname": dbname,
-            "user": user,
-            "password": password,
-        }
+        if not DatabasePool.is_initialized():
+            raise RuntimeError(
+                "DatabasePool not initialized. Call DatabasePool.initialize() first."
+            )
+        
         self.movies: List[Movie] = []
         self.movies_dict: dict[int, Movie] = {}
 
@@ -48,10 +40,14 @@ class MoviesRepository:
     def _load_movies(self) -> None:
         """Load all movies from PostgreSQL database.
 
-        Connects to the database and fetches all movies from the movies table.
+        Gets a connection from the shared pool and fetches all movies 
+        from the movies table.
         """
+        conn = None
         try:
-            conn = psycopg2.connect(**self.conn_params)
+            # Get connection from shared pool
+            conn = DatabasePool.get_connection()
+            
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("SELECT movie_id, title, year, genres FROM movies ORDER BY movie_id")
                 rows = cur.fetchall()
@@ -67,11 +63,14 @@ class MoviesRepository:
                     self.movies.append(movie)
                     self.movies_dict[row["movie_id"]] = movie
 
-            conn.close()
             logger.info(f"Loaded {len(self.movies)} movies from PostgreSQL")
         except psycopg2.Error as e:
             logger.error(f"Error loading movies from PostgreSQL: {e}")
             raise
+        finally:
+            # Return connection to shared pool
+            if conn:
+                DatabasePool.return_connection(conn)
 
     def get_movie_by_id(self, movie_id: int) -> Optional[Movie]:
         """Get a movie by its ID.
@@ -172,3 +171,4 @@ class MoviesRepository:
             result = [m for m in result if m.year == year]
 
         return result
+

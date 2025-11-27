@@ -7,65 +7,86 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.database import DatabasePool
 from app.main import create_app
+from app.models.movie import Movie
 from app.repositories.movies_repository import MoviesRepository
 from app.services.movies_service import MoviesService
 
 
 @pytest.fixture
-def sample_csv_data() -> str:
-    """Create sample CSV data for testing.
+def sample_movies() -> list[Movie]:
+    """Create sample movies for testing.
 
     Returns:
-        str: Sample CSV content.
+        list[Movie]: List of sample movies.
     """
-    return """movieId,title,genres
-1,Toy Story (1995),Adventure|Animation|Children|Comedy|Fantasy
-2,Jumanji (1995),Adventure|Children|Fantasy
-3,Grumpier Old Men (1995),Comedy|Romance
-4,Waiting to Exhale (1995),Comedy|Drama
-5,Father of the Bride Part II (1995),Comedy
-6,Heat (1995),Action|Crime|Thriller
-7,Sabrina (1995),Comedy|Romance
-8,Tom and Huck (1995),Adventure|Children
-9,Sudden Death (1995),Action
-10,GoldenEye (1995),Action|Adventure|Thriller
-"""
+    return [
+        Movie(movie_id=1, title="Toy Story (1995)", year=1995, genres=["Adventure", "Animation", "Children", "Comedy", "Fantasy"]),
+        Movie(movie_id=2, title="Jumanji (1995)", year=1995, genres=["Adventure", "Children", "Fantasy"]),
+        Movie(movie_id=3, title="Grumpier Old Men (1995)", year=1995, genres=["Comedy", "Romance"]),
+        Movie(movie_id=4, title="Waiting to Exhale (1995)", year=1995, genres=["Comedy", "Drama"]),
+        Movie(movie_id=5, title="Father of the Bride Part II (1995)", year=1995, genres=["Comedy"]),
+        Movie(movie_id=6, title="Heat (1995)", year=1995, genres=["Action", "Crime", "Thriller"]),
+        Movie(movie_id=7, title="Sabrina (1995)", year=1995, genres=["Comedy", "Romance"]),
+        Movie(movie_id=8, title="Tom and Huck (1995)", year=1995, genres=["Adventure", "Children"]),
+        Movie(movie_id=9, title="Sudden Death (1995)", year=1995, genres=["Action"]),
+        Movie(movie_id=10, title="GoldenEye (1995)", year=1995, genres=["Action", "Adventure", "Thriller"]),
+    ]
 
 
 @pytest.fixture
-def temp_csv_file(sample_csv_data: str) -> str:
-    """Create a temporary CSV file with sample data.
+def movies_repository(sample_movies: list[Movie]) -> MoviesRepository:
+    """Create a mock MoviesRepository with sample data.
 
     Args:
-        sample_csv_data: Sample CSV content.
-
-    Yields:
-        str: Path to temporary CSV file.
-    """
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".csv", delete=False, newline=""
-    ) as f:
-        f.write(sample_csv_data)
-        temp_path = f.name
-
-    yield temp_path
-
-    # Cleanup
-    Path(temp_path).unlink(missing_ok=True)
-
-
-@pytest.fixture
-def movies_repository(temp_csv_file: str) -> MoviesRepository:
-    """Create a MoviesRepository with sample data.
-
-    Args:
-        temp_csv_file: Path to temporary CSV file.
+        sample_movies: List of sample movies.
 
     Returns:
-        MoviesRepository: Initialized repository.
+        MoviesRepository: Mock repository with sample data.
     """
-    return MoviesRepository(temp_csv_file)
+    import re
+    
+    class MockMoviesRepository:
+        def __init__(self):
+            self.movies = sample_movies
+            self.movies_dict = {m.movie_id: m for m in sample_movies}
+        
+        def get_movie_by_id(self, movie_id: int):
+            return self.movies_dict.get(movie_id)
+        
+        def list_movies(self, page: int = 1, page_size: int = 20, title=None, genre=None, year=None):
+            filtered = self._filter_movies(title=title, genre=genre, year=year)
+            total = len(filtered)
+            start = (page - 1) * page_size
+            end = start + page_size
+            return filtered[start:end], total
+        
+        def search_movies(self, query: str, page: int = 1, page_size: int = 20, genre=None, year=None):
+            return self.list_movies(page=page, page_size=page_size, title=query, genre=genre, year=year)
+        
+        def _filter_movies(self, title=None, genre=None, year=None):
+            result = self.movies
+            if title:
+                title_lower = title.lower()
+                result = [m for m in result if title_lower in m.title.lower()]
+            if genre:
+                genre_lower = genre.lower()
+                result = [m for m in result if any(genre_lower in g.lower() for g in m.genres)]
+            if year is not None:
+                result = [m for m in result if m.year == year]
+            return result
+        
+        @staticmethod
+        def _extract_year(title: str):
+            """Extract year from movie title like 'Toy Story (1995)'."""
+            year_regex = re.compile(r"\((\d{4})\)\s*$")
+            match = year_regex.search(title)
+            if match:
+                return int(match.group(1))
+            return None
+    
+    return MockMoviesRepository()
 
 
 @pytest.fixture
@@ -91,14 +112,9 @@ def client(movies_service: MoviesService) -> TestClient:
     Returns:
         TestClient: FastAPI test client.
     """
-    app = create_app()
-    app.dependency_overrides[app.get("routes_movies").get_movies_service] = (
-        lambda: movies_service
-    )
-
-    # Override the dependency directly from the router
     from app.api import routes_movies
-
+    
+    app = create_app()
     app.dependency_overrides[routes_movies.get_movies_service] = (
         lambda: movies_service
     )
@@ -192,7 +208,7 @@ class TestListMovies:
         response = client.get("/api/movies?genre=Action")
         assert response.status_code == 200
         data = response.json()
-        assert data["total_items"] == 2
+        assert data["total_items"] == 3
         # Check that all items contain the genre
         for item in data["items"]:
             assert "Action" in item["genres"]
