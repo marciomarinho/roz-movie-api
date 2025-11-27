@@ -98,6 +98,22 @@ movieId,title,genres
 
 ### 5. Run Locally
 
+Runninc keycloack on docker localhost
+```bash
+docker run -p 127.0.0.1:8080:8080 -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:26.4.6 start-dev
+```
+
+Getting a bearer token
+```bash
+curl -X POST "http://localhost:8080/realms/myrealm/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "client_id=rozetta" \
+  -d "client_secret=B3Gei1LABwOS9UDD6luVKnX18248TnwZ" \
+  -d "grant_type=password" \
+  -d "username=rozetta" \
+  -d "password=123456"
+```
+
 ```bash
 uvicorn app.main:app --reload
 ```
