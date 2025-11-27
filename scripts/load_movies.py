@@ -2,15 +2,18 @@
 """Load MovieLens movies.csv into PostgreSQL database."""
 # docker run --name my-postgres -e POSTGRES_PASSWORD=mysecretpassword -p 5432:5432 -d postgres
 
-# python load_movies.py \
-#   --dbname=your_db \
-#   --user=your_user \
-#   --password=your_password \
-#   --create-table \
+# python scripts/load_movies.py \
+#   --dbname=postgres \
+#   --user=postgres \
+#   --password=mysecretpassword \
+#   --drop-table --create-table
 #   --csv-path=data/movies.csv
+
+# python scripts/load_movies.py --dbname=postgres --user=postgres --password=mysecretpassword --drop-table --create-table --csv-path=../data/movies.csv
 
 # python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
+#!/usr/bin/env python
 import argparse
 import csv
 import re
@@ -23,12 +26,16 @@ YEAR_REGEX = re.compile(r"\((\d{4})\)\s*$")
 
 
 CREATE_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS movies (
+CREATE TABLE IF NOT EXISTS public.movies (
     movie_id  INTEGER PRIMARY KEY,
     title     TEXT NOT NULL,
     year      INTEGER,
     genres    TEXT[] NOT NULL
 );
+"""
+
+DROP_TABLE_SQL = """
+DROP TABLE IF EXISTS public.movies;
 """
 
 
@@ -43,6 +50,14 @@ def parse_year(title: str):
     return None
 
 
+def drop_table(conn):
+    """Drops the movies table."""
+    with conn.cursor() as cur:
+        cur.execute(DROP_TABLE_SQL)
+    conn.commit()
+    print("Dropped table public.movies (if it existed).")
+
+
 def ensure_table_exists(conn):
     """
     Creates the movies table if it does not exist.
@@ -50,13 +65,12 @@ def ensure_table_exists(conn):
     with conn.cursor() as cur:
         cur.execute(CREATE_TABLE_SQL)
     conn.commit()
-    print("Ensured 'movies' table exists.")
+    print("Ensured public.movies table exists.")
 
 
 def load_movies(csv_path: str, conn_params: dict, create_table: bool = False):
     """
-    Loads movies from a MovieLens-style CSV into the 'movies' table.
-    Expects columns: movieId,title,genres
+    Loads movies CSV into public.movies table.
     """
     conn = psycopg2.connect(**conn_params)
     try:
@@ -73,10 +87,7 @@ def load_movies(csv_path: str, conn_params: dict, create_table: bool = False):
                 year = parse_year(title)
 
                 genres_raw = row["genres"] or ""
-                # Drop "(no genres listed)" if present
                 genres = [g for g in genres_raw.split("|") if g and g != "(no genres listed)"]
-
-                # Ensure we always have something in genres to satisfy NOT NULL
                 if not genres:
                     genres = ["Unknown"]
 
@@ -87,16 +98,17 @@ def load_movies(csv_path: str, conn_params: dict, create_table: bool = False):
                 return
 
             insert_sql = """
-                INSERT INTO movies (movie_id, title, year, genres)
+                INSERT INTO public.movies (movie_id, title, year, genres)
                 VALUES %s
                 ON CONFLICT (movie_id) DO UPDATE
                 SET title = EXCLUDED.title,
-                    year  = EXCLUDED.year,
+                    year = EXCLUDED.year,
                     genres = EXCLUDED.genres;
             """
 
             extras.execute_values(cur, insert_sql, rows, page_size=1000)
             conn.commit()
+
             print(f"Inserted/updated {len(rows)} movies.")
 
     finally:
@@ -107,10 +119,11 @@ def main():
     parser = argparse.ArgumentParser(
         description="Load MovieLens movies.csv into PostgreSQL 'movies' table."
     )
+
     parser.add_argument(
         "--csv-path",
-        default="data/movies.csv",
-        help="Path to movies.csv (default: data/movies.csv)",
+        default="../data/movies_small.csv",
+        help="Path to movies.csv (default: ../data/movies_small.csv)",
     )
     parser.add_argument("--host", default="localhost", help="PostgreSQL host (default: localhost)")
     parser.add_argument("--port", default=5432, type=int, help="PostgreSQL port (default: 5432)")
@@ -123,6 +136,11 @@ def main():
         action="store_true",
         help="Create the 'movies' table if it does not exist before loading data.",
     )
+    parser.add_argument(
+        "--drop-table",
+        action="store_true",
+        help="Drop the 'movies' table before doing anything else.",
+    )
 
     args = parser.parse_args()
 
@@ -134,7 +152,23 @@ def main():
         "password": args.password,
     }
 
-    load_movies(args.csv_path, conn_params, create_table=args.create_table)
+    conn = psycopg2.connect(**conn_params)
+
+    try:
+        # Handle --drop-table
+        if args.drop_table:
+            drop_table(conn)
+            # If user ONLY wants to drop, don't proceed
+            if not args.create_table:
+                print("Drop complete. Exiting (no create/load requested).")
+                conn.close()
+                return
+
+        # Handle loading
+        load_movies(args.csv_path, conn_params, create_table=args.create_table)
+
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
