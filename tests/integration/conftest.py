@@ -2,106 +2,161 @@
 import asyncio
 import os
 from urllib.parse import urlparse
+import time
+import subprocess
+import json
 
 import pytest
 import psycopg2
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from testcontainers.postgres import PostgresContainer
 
 from app.core.config import Settings
 from app.core.database import DatabasePool
 from app.core.integration_test_config import IntegrationTestSettings
 from scripts.init_db import initialize_database
 
-# Create container instance at module level
-postgres = PostgresContainer("postgres:15-alpine")
 
-
-@pytest.fixture(scope="module", autouse=True)
-def setup(request):
+@pytest.fixture(scope="session")
+def postgres_container():
     """
-    Setup fixture to start PostgreSQL container and initialize database.
-    Uses module scope so it runs once for all tests in the module.
-    Uses finalizer for cleanup to ensure teardown runs even if setup fails.
+    Start a PostgreSQL container for the whole test session using raw Docker commands.
+    Bypasses testcontainers entirely to avoid health check hangs on Windows.
+    Manually checks connection readiness instead.
+    Yields connection details.
     """
     settings = IntegrationTestSettings()
-    
-    print("\n" + "="*60)
-    print("[*] Starting PostgreSQL container...")
-    print("="*60)
-    
-    # Start container
-    postgres.start()
-    print(f"[✓] Container started")
-    
-    # Get connection details
-    db_url = postgres.get_connection_url()
-    host = postgres.get_container_host_ip()
-    port = postgres.get_exposed_port(5432)
-    
-    print("db_url" + db_url)
-    print("host" + host)
-    print("port" + port)
 
-    print(f"    Connection URL: postgresql://{settings.postgres_user}:***@{host}:{port}/{settings.postgres_db}")
-    print(f"[✓] Database is ready!")
+    print("\n" + "=" * 60)
+    print("[*] Starting PostgreSQL container...")
+    print("=" * 60)
+
+    container_id = None
+    host_port = None
     
-    # Initialize database (create tables and load data)
-    print("\n[*] Creating tables and loading test data...")
-    parsed = urlparse(db_url)
-    initialize_database(
-        host=parsed.hostname,
-        port=parsed.port,
-        user=parsed.username,
-        password=parsed.password,
-        database=parsed.path.lstrip("/"),
-        csv_file_path=settings.test_data_csv,
-    )
-    print("[✓] Database initialized")
-    print("="*60 + "\n")
-    
-    # Store connection details in environment for other fixtures
-    os.environ["DB_CONN"] = db_url
-    os.environ["DB_HOST"] = host
-    os.environ["DB_PORT"] = str(port)
-    os.environ["DB_USERNAME"] = settings.postgres_user
-    os.environ["DB_PASSWORD"] = settings.postgres_password
-    os.environ["DB_NAME"] = settings.postgres_db
-    
-    # Define cleanup function
-    def cleanup():
-        print("\n" + "="*60)
+    try:
+        # Start PostgreSQL container directly with Docker CLI
+        cmd = [
+            "docker", "run", "-d",
+            "-e", f"POSTGRES_USER={settings.postgres_user}",
+            "-e", f"POSTGRES_PASSWORD={settings.postgres_password}",
+            "-e", f"POSTGRES_DB={settings.postgres_db}",
+            "-p", "0:5432",  # Bind to random host port
+            "postgres:15-alpine"
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        container_id = result.stdout.strip()
+        print(f"[✓] Container started: {container_id[:12]}")
+        
+        # Get the mapped port
+        inspect_cmd = ["docker", "port", container_id, "5432"]
+        port_result = subprocess.run(inspect_cmd, capture_output=True, text=True, check=True)
+        port_mapping = port_result.stdout.strip()  # e.g., "127.0.0.1:32768"
+        host_port = int(port_mapping.split(":")[-1])
+        container_host = "127.0.0.1"
+        
+        print(f"    Host: {container_host}")
+        print(f"    Port: {host_port}")
+
+        # Manually check if connection is ready
+        print("\n[*] Waiting for PostgreSQL to be ready...")
+        max_retries = 30
+        retry_delay = 1
+        for attempt in range(max_retries):
+            try:
+                test_conn = psycopg2.connect(
+                    host=container_host,
+                    port=host_port,
+                    user=settings.postgres_user,
+                    password=settings.postgres_password,
+                    database=settings.postgres_db,
+                    connect_timeout=3,
+                )
+                test_conn.close()
+                print(f"[✓] PostgreSQL is ready!")
+                break
+            except psycopg2.OperationalError as e:
+                if attempt < max_retries - 1:
+                    print(f"    Attempt {attempt + 1}/{max_retries}: Connection failed, retrying...")
+                    time.sleep(retry_delay)
+                else:
+                    print(f"[!] PostgreSQL failed to start after {max_retries} attempts")
+                    raise
+
+        # Initialize schema & data
+        print("\n[*] Creating tables and loading test data...")
+
+        initialize_database(
+            host=container_host,
+            port=host_port,
+            user=settings.postgres_user,
+            password=settings.postgres_password,
+            database=settings.postgres_db,
+            csv_file_path=settings.test_data_csv,
+        )
+        print("[✓] Database initialized")
+        print("=" * 60 + "\n")
+
+        # Expose connection details via env for other fixtures
+        os.environ["DB_HOST"] = container_host
+        os.environ["DB_PORT"] = str(host_port)
+        os.environ["DB_USERNAME"] = settings.postgres_user
+        os.environ["DB_PASSWORD"] = settings.postgres_password
+        os.environ["DB_NAME"] = settings.postgres_db
+
+        yield {
+            "host": container_host,
+            "port": host_port,
+            "user": settings.postgres_user,
+            "password": settings.postgres_password,
+            "database": settings.postgres_db,
+            "container_id": container_id,
+        }
+
+    finally:
+        print("\n" + "=" * 60)
         print("[*] Stopping PostgreSQL container...")
-        print("="*60)
-        try:
-            postgres.stop()
-            print("[✓] Container stopped")
-        except Exception as e:
-            print(f"[!] Error stopping container: {e}")
-        print("="*60 + "\n")
-    
-    # Register cleanup to run after all tests
-    request.addfinalizer(cleanup)
+        print("=" * 60)
+        if container_id:
+            try:
+                stop_cmd = ["docker", "stop", container_id]
+                subprocess.run(stop_cmd, capture_output=True, check=True)
+                
+                rm_cmd = ["docker", "rm", container_id]
+                subprocess.run(rm_cmd, capture_output=True, check=True)
+                print("[✓] Container stopped and removed")
+            except Exception as e:
+                print(f"[!] Error stopping container: {e}")
+        print("=" * 60 + "\n")
 
 
 @pytest.fixture(scope="session")
-def test_db_url() -> str:
-    """Get database connection URL.
+def test_db_url(postgres_container) -> str:
+    """Database connection URL used by tests.
     
+    Args:
+        postgres_container: Session-scoped container fixture (ensures it's started).
+        
     Returns:
         str: Database connection URL.
     """
-    settings = IntegrationTestSettings()
-    host = os.environ.get("DB_HOST", "localhost")
-    port = os.environ.get("DB_PORT", "5432")
-    return f"postgresql://{settings.postgres_user}:{settings.postgres_password}@{host}:{port}/{settings.postgres_db}"
+    # We rely on env vars set in postgres_container fixture
+    host = os.environ["DB_HOST"]
+    port = os.environ["DB_PORT"]
+    user = os.environ["DB_USERNAME"]
+    password = os.environ["DB_PASSWORD"]
+    db_name = os.environ["DB_NAME"]
+    return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
 
 
 @pytest.fixture(scope="function")
-def test_settings() -> Settings:
+def test_settings(postgres_container) -> Settings:
     """Create Settings with test database connection.
     
+    Args:
+        postgres_container: Session-scoped container fixture (ensures it's started).
+        
     Returns:
         Settings: Configured for test database.
     """
@@ -110,13 +165,14 @@ def test_settings() -> Settings:
     db_name = os.environ.get("DB_NAME")
     db_user = os.environ.get("DB_USERNAME")
     db_password = os.environ.get("DB_PASSWORD")
-    
+
     if not all([host, port, db_name, db_user, db_password]):
         raise RuntimeError(
             f"Database environment variables not set. "
-            f"Host={host}, Port={port}, Name={db_name}, User={db_user}, Pass={bool(db_password)}"
+            f"Host={host}, Port={port}, Name={db_name}, "
+            f"User={db_user}, Pass={bool(db_password)}"
         )
-    
+
     return Settings(
         db_host=host,
         db_port=int(port),
@@ -139,25 +195,42 @@ def app(test_settings: Settings):
         FastAPI: The configured application.
     """
     print("\n[*] Starting FastAPI application...")
-    
-    # Override get_settings before importing app.main
+
     from app.core import config as config_module
     original_get_settings = config_module.get_settings
     config_module.get_settings = lambda: test_settings
-    
+
     try:
-        # Import create_app AFTER overriding get_settings
+        # Import and manually initialize dependencies
         from app.main import create_app
+        import app.main as main_module
+        from app.core.database import DatabasePool
+        from app.repositories.movies_repository import MoviesRepository
+        from app.services.movies_service import MoviesService
         
+        # Initialize database pool with test settings
+        DatabasePool.initialize(
+            host=test_settings.db_host,
+            port=test_settings.db_port,
+            dbname=test_settings.db_name,
+            user=test_settings.db_user,
+            password=test_settings.db_password,
+        )
+        
+        # Initialize movies service
+        repository = MoviesRepository()
+        main_module.movies_service = MoviesService(repository)
+        
+        # Create app (lifespan will try to reinitialize but that's okay, it will just update)
         application = create_app()
         print("[✓] Application started")
-        
+
         yield application
     finally:
         print("[*] Stopping FastAPI application...")
         # Restore original settings
         config_module.get_settings = original_get_settings
-        
+
         # Close database connections
         try:
             if DatabasePool.is_initialized():
