@@ -17,7 +17,8 @@ A production-ready REST API for the MovieLens movies database, built with FastAP
 11. [Testing](#testing)
 12. [Deployment](#deployment)
 13. [Architecture Deep Dive](#architecture-deep-dive)
-14. [Troubleshooting](#troubleshooting)
+14. [Production Architecture](#production-architecture)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -1151,6 +1152,31 @@ In Lightsail console:
 
 ## Architecture Deep Dive
 
+### Decisions and Trade-offs
+
+As for this exercise, I chose to build it in a kind of **"monolithic" fashion**. To clarify the rationale: I was given a single instance of AWS LightSail, so I decided to mirror a local environment. From another perspective, this is similar to deploying a LAMP stack in a VPS — a single machine running all services together.
+
+This approach offers several advantages for this constraint:
+
+- **Simplicity**: All components run on one instance, reducing complexity
+- **Cost-effective**: Single machine deployment (AWS LightSail) is the most economical option
+- **Easier debugging**: All logs and processes are in one place
+- **Faster iteration**: Simpler deployment pipeline for development and testing
+- **Proven pattern**: Similar to traditional VPS deployments that have been reliable for decades
+
+However, this monolithic approach does come with trade-offs:
+
+- **Scalability**: Cannot scale individual components independently
+- **Resilience**: Single point of failure (if one service crashes, others may be affected)
+- **Resource constraints**: All services share the same CPU, memory, and disk
+- **Deployment coupling**: Updating one service requires redeploying everything
+
+**The Production Architecture section** (Section 14) outlines how this would be refactored for enterprise scale using AWS ECS, with proper microservices, auto-scaling, and high availability — the ideal scenario if resources and requirements allow.
+
+![RoZetta Local Architecture](RoZetta_Local_Architecture.png)
+
+---
+
 ### Layered Architecture Pattern
 
 The application follows a **clean layered architecture** for maintainability and testability:
@@ -1402,6 +1428,194 @@ Logs can be aggregated and analyzed for:
 - Security audits
 - Debugging
 - Usage analytics
+
+---
+
+## Production Architecture
+
+### Enterprise-Grade ECS Architecture
+
+If designed from scratch with unlimited resources and freedom to choose the architecture, the production-ready solution would follow an enterprise-grade AWS ECS architecture:
+
+![RoZetta Production Architecture](RoZetta_Final_Architecture.png)
+
+### Implementation Strategy
+
+This section outlines a comprehensive 12-phase implementation approach for deploying the Movie API to a production-ready AWS ECS environment with full CI/CD, security, and operational excellence.
+
+#### Phase 1: Repository Setup
+
+- Create a GitHub repository for the application code (FastAPI service)
+- Create a separate GitHub repository for Terraform infrastructure-as-code
+- Set up branch protection rules (main branch requires PR reviews)
+- Configure GitHub Actions for automated testing on PRs
+
+#### Phase 2: Core Infrastructure (Terraform)
+
+- Write Terraform modules for VPC with public/private subnets across multiple AZs
+- Create NAT Gateways for outbound internet access from private subnets
+- Set up security groups with least-privilege access patterns
+- Create an Application Load Balancer (ALB) with target groups for blue/green deployments
+- Provision an ECS Fargate cluster with task definitions
+- Configure auto-scaling policies for ECS services based on CPU/memory/custom metrics
+- Set up Amazon ECR repository with lifecycle policies for image retention
+- Create DynamoDB tables with point-in-time recovery enabled
+- Provision ElastiCache for Redis cluster in private subnets
+- Configure AWS Secrets Manager for storing database credentials and API keys
+- Set up CloudWatch Log Groups for centralized logging
+
+#### Phase 3: Security & Access Control
+
+- Create Amazon Cognito User Pool for authentication
+- Configure Cognito Identity Pool for authorized API access
+- Set up API Gateway with Cognito authorizer integration
+- Deploy AWS WAF with rules for SQL injection, XSS, and rate limiting
+- Configure WAF association with API Gateway and ALB
+- Create IAM roles for ECS task execution and task roles with minimal permissions
+- Set up KMS keys for encrypting secrets and data at rest
+
+#### Phase 4: CI/CD Pipeline (CodePipeline)
+
+- Create an S3 bucket for CodePipeline artifacts with encryption
+- Set up CodePipeline with source stage connected to GitHub (webhook trigger)
+- Configure CodeBuild project for running unit tests and linting
+- Add CodeBuild stage for building Docker images
+- Configure Docker image tagging strategy (git commit SHA + semantic versioning)
+- Push images to ECR with vulnerability scanning enabled
+- Create CodeBuild buildspec.yml for build automation
+
+#### Phase 5: Blue/Green Deployment (CodeDeploy)
+
+- Configure CodeDeploy application for ECS
+- Create deployment group with blue/green deployment configuration
+- Set up two target groups on ALB (blue and green)
+- Configure traffic shifting strategy (canary, linear, or all-at-once)
+- Define deployment rollback triggers based on CloudWatch alarms
+- Set up appspec.yml for ECS deployment lifecycle hooks
+- Configure test traffic routing for validation before production cutover
+- Implement automated rollback on health check failures
+
+#### Phase 6: Application Code Setup
+
+- Create Dockerfile optimized for production (multi-stage builds)
+- Add health check endpoints (/health, /ready) in FastAPI
+- Implement graceful shutdown handlers for zero-downtime deployments
+- Configure application to read secrets from Secrets Manager
+- Set up connection pooling for DynamoDB and Redis
+- Add structured logging with correlation IDs
+- Implement circuit breaker patterns for external service calls
+
+#### Phase 7: Monitoring & Observability
+
+- Set up CloudWatch dashboards for key metrics (latency, error rates, throughput)
+- Create CloudWatch alarms for critical thresholds (high CPU, memory, error rates)
+- Configure SNS topics for alarm notifications
+- Enable AWS X-Ray for distributed tracing
+- Set up CloudWatch Insights queries for log analysis
+- Create custom metrics for business KPIs
+- Configure CloudWatch Container Insights for ECS monitoring
+
+#### Phase 8: Disaster Recovery & High Availability
+
+- Configure multi-AZ deployment for all services
+- Set up automated backups for DynamoDB with 35-day retention
+- Enable cross-region replication for ECR images (optional)
+- Create Route53 health checks for failover scenarios
+- Document RTO/RPO requirements and test disaster recovery procedures
+- Implement database backup automation using AWS Backup
+
+#### Phase 9: Cost Optimization
+
+- Configure Fargate Spot for non-production environments
+- Set up ECR lifecycle policies to remove old images (keep last 10)
+- Implement scheduled scaling (scale down during off-hours)
+- Use AWS Cost Explorer to track spending by service
+- Enable AWS Compute Optimizer recommendations
+- Configure CloudWatch Logs retention policies (30 days for prod, 7 days for dev)
+
+#### Phase 10: Testing & Validation
+
+- Create smoke tests in CodePipeline for post-deployment validation
+- Set up integration tests that run against green environment before cutover
+- Configure synthetic monitoring with CloudWatch Synthetics (canaries)
+- Perform load testing to validate auto-scaling behavior
+- Test blue/green rollback scenarios
+- Validate security groups and network ACLs through automated tests
+
+#### Phase 11: Documentation & Runbooks
+
+- Document architecture diagrams in repository
+- Create runbooks for common operational tasks (deployments, rollbacks, scaling)
+- Write troubleshooting guides for common issues
+- Document secrets rotation procedures
+- Create onboarding guide for new team members
+- Maintain changelog for infrastructure changes
+
+#### Phase 12: Production Readiness
+
+- Conduct security review and penetration testing
+- Perform disaster recovery drill
+- Execute load testing with production-like traffic
+- Review and optimize CloudWatch costs
+- Set up on-call rotation and incident response procedures
+- Create deployment checklist and approval process
+- Schedule infrastructure review meetings
+
+### Key Architectural Benefits
+
+| Aspect | Benefit |
+|--------|---------|
+| **Multi-AZ Deployment** | High availability, fault tolerance, no single point of failure |
+| **Load Balancing** | Automatic traffic distribution, zero-downtime deployments |
+| **Auto-Scaling** | Cost-effective, handles traffic spikes automatically |
+| **Blue/Green Deployments** | Zero-downtime updates, instant rollback if issues detected |
+| **Secrets Management** | Secure credential rotation, audit trails, encryption at rest |
+| **CloudWatch Monitoring** | Real-time alerting, performance insights, cost tracking |
+| **DynamoDB/ElastiCache** | High performance, managed service, automatic scaling |
+| **WAF Protection** | DDoS protection, SQL injection prevention, rate limiting |
+| **ECR Registry** | Docker image vulnerability scanning, lifecycle policies |
+| **Infrastructure as Code** | Reproducible environments, version control, disaster recovery |
+
+### Current vs. Production Architecture
+
+**Current Development Setup:**
+```
+Single Developer Machine
+├── FastAPI Application
+├── Keycloak (OAuth2)
+├── PostgreSQL Database
+└── Docker Compose Orchestration
+```
+
+**Production ECS Architecture:**
+```
+AWS Cloud
+├── Multi-AZ Application Load Balancer
+├── ECS Fargate Cluster (Auto-Scaling)
+│   ├── Blue Target Group
+│   ├── Green Target Group
+│   └── Health Checks
+├── Amazon ElastiCache (Redis)
+├── Amazon DynamoDB
+├── Amazon ECR (Docker Registry)
+├── AWS Secrets Manager
+├── Amazon Cognito (Authentication)
+├── AWS WAF & Shield
+├── CloudWatch (Monitoring & Logging)
+├── CodePipeline (CI/CD)
+│   ├── CodeBuild (Testing & Build)
+│   ├── CodeDeploy (Blue/Green Deployment)
+│   └── GitHub Integration
+└── Route53 (DNS & Failover)
+```
+
+This production architecture ensures:
+- ✅ **Availability**: 99.99% uptime SLA
+- ✅ **Scalability**: Auto-scales from 0 to 1000+ concurrent users
+- ✅ **Security**: Multiple layers of protection (WAF, IAM, KMS, Secrets Manager)
+- ✅ **Reliability**: Automated backups, disaster recovery, rollback capabilities
+- ✅ **Observability**: Real-time monitoring, distributed tracing, comprehensive logging
+- ✅ **Cost Efficiency**: Pay-per-use pricing, scheduled scaling, Spot instances
 
 ---
 
