@@ -114,20 +114,15 @@ Rather than implementing basic API keys, I integrated **Keycloak** (open-source 
 The test suite follows the **test pyramid** principle:
 
 ```
-       /\
-      /  \   Integration Tests (33)
-     /    \    - End-to-end API tests
-    /------\   - Database interactions
-   /        \   - OAuth2 token flows
-  /          \ /\
- /           /  \  Service Tests (60)
-/----------/    \  - Business logic
-                  \ - Filter algorithms
-                   \
-              Unit Tests (74)
-              - Models
-              - Helpers
-              - Utilities
+                ▰▰▰▰▰▰▰▰
+               ▰ End to End ▰
+              ▰▰▰▰▰▰▰▰▰▰▰▰▰
+             ▰    (33 tests)  ▰
+            ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
+           ▰  Integration (60)  ▰
+          ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
+         ▰    Unit Tests (74)    ▰
+        ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
 
 This ensures quick feedback (unit tests) while validating real workflows (integration tests).
@@ -551,6 +546,216 @@ curl -H "Authorization: Bearer $TOKEN" \
 ### OAuth2 with Bearer Tokens
 
 This API uses **OAuth2 with JWT bearer tokens** for authentication. Keycloak handles token generation and validation.
+
+#### OAuth2 Client Credentials Flow
+
+```
+┌─────────┐              ┌────────────────────┐              ┌─────────────────┐
+│ Client  │              │ Authorization      │              │ Resource Server │
+│         │              │ Server (Keycloak)  │              │ (Movie API)     │
+└────┬────┘              └────────┬───────────┘              └────────┬────────┘
+     │                            │                                   │
+     │  1. Send client credentials│                                   │
+     ├───────────────────────────>│                                   │
+     │                            │                                   │
+     │    2. Authenticate client  │                                   │
+     │    <validation>            │                                   │
+     │                            │                                   │
+     │  3. Return access token    │                                   │
+     │    (with NO refresh token) │                                   │
+     │<───────────────────────────┤                                   │
+     │                            │                                   │
+     │  4. Access API with token  │                                   │
+     ├────────────────────────────────────────────────────────────> │
+     │                            │                                   │
+     │                            │  5. Validate JWT signature         │
+     │                            │     (using Keycloak JWKS)         │
+     │                            │                                   │
+     │                            │  6. Check token expiration        │
+     │                            │     and claims                    │
+     │                            │                                   │
+     │                            │  7. Return protected resource     │
+     │                            │     if valid                      │
+     │<────────────────────────────────────────────────────────────|
+     │                            │                                   │
+```
+
+**Flow Steps:**
+1. Client sends client credentials (ID + secret)
+2. Authorization Server validates credentials
+3. Server returns access token with NO refresh token
+4. Client includes token in API requests
+5. Resource Server validates JWT signature
+6. Server checks token expiration and claims
+7. Protected resource is returned if valid
+
+---
+
+### How JWT Bearer Tokens Are Validated
+
+When you send a request with a bearer token, here's exactly what happens in the application:
+
+#### Step 1: Extract and Decode the JWT
+
+A JWT consists of three Base64Url-encoded parts separated by dots:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQ1In0.
+eyJzdWIiOiI4ZjdjM2U5YS0yYjFkLTRmOGUtOWMzYS03YjVlMmQxYzRhNmYiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJtb3ZpZXVzZXIiLCJleHAiOjE3MzIxOTEwNDUsImlhdCI6MTczMjE5MDc0NX0.
+AbCdEfGhIjKlMnOpQrStUvWxYz...
+```
+
+**Part breakdown:**
+- **Header** (part 1): Algorithm and token type
+  ```json
+  {
+    "alg": "RS256",
+    "typ": "JWT",
+    "kid": "12345"
+  }
+  ```
+- **Payload** (part 2): User claims and metadata
+  ```json
+  {
+    "sub": "8f7c3e9a-2b1d-4f8e-9c3a-7b5e2d1c4a6f",
+    "preferred_username": "movieuser",
+    "exp": 1732191045,
+    "iat": 1732190745
+  }
+  ```
+- **Signature** (part 3): Cryptographic signature proving integrity
+
+#### Step 2: Verify the Signature (Most Important!)
+
+This is where we ensure the token is authentic and hasn't been tampered with:
+
+**In `app/core/keycloak.py`:**
+
+```python
+def verify_token(token: str) -> dict:
+    """
+    Verify JWT bearer token signature and return decoded claims.
+    
+    Process:
+    1. Fetch public keys from Keycloak JWKS endpoint
+    2. Extract key ID (kid) from JWT header
+    3. Find matching key using signing purpose (use: "sig")
+    4. Verify signature using RSA public key
+    5. Validate token expiration and other claims
+    """
+    
+    # Step 1: Get JWT header without validation
+    unverified_header = jwt.get_unverified_header(token)
+    kid = unverified_header["kid"]  # Key ID to find public key
+    
+    # Step 2: Fetch JWKS from Keycloak
+    jwks = fetch_jwks_from_keycloak(keycloak_url, realm)
+    
+    # Step 3: Find public key by kid and signing purpose
+    public_key = find_key_by_kid_and_use(jwks, kid, use="sig")
+    if not public_key:
+        raise KeyError("Signing key not found in JWKS")
+    
+    # Step 4: Verify signature using public key
+    payload = jwt.decode(
+        token,
+        key=public_key,
+        algorithms=["RS256"],  # RSA Signature with SHA-256
+        audience="account",
+        options={"verify_exp": True}  # Verify expiration
+    )
+    
+    # Step 5: Claims are now trusted
+    return payload
+```
+
+**Why RS256 (RSA)?**
+- **RS256** = RSA Signature with SHA-256
+- Uses asymmetric cryptography (public/private key pair)
+- Keycloak signs with private key, we verify with public key
+- More secure than HS256 (symmetric - same key for signing and verifying)
+
+#### Step 3: Validate Claims
+
+After signature verification, we check the token's claims:
+
+| Claim | Validation | Purpose |
+|-------|-----------|---------|
+| `exp` | Current time < expiration time | Token not expired |
+| `iat` | Token issued before now | Reasonable issuance time |
+| `iss` | Must match Keycloak realm URL | Token from correct server |
+| `aud` | Must be "account" | Token intended for this API |
+| `sub` | User identifier | Who made the request |
+| `preferred_username` | Username | Display name |
+| `email_verified` | Must be true | User email is validated |
+
+**Example validation in code:**
+
+```python
+def validate_claims(payload: dict) -> None:
+    """Validate all JWT claims."""
+    
+    # 1. Check expiration
+    exp = payload.get("exp")
+    if exp and exp < time.time():
+        raise TokenExpired(f"Token expired at {datetime.fromtimestamp(exp)}")
+    
+    # 2. Check issuer
+    iss = payload.get("iss")
+    expected_iss = f"{keycloak_url}/realms/{realm}"
+    if iss != expected_iss:
+        raise InvalidToken(f"Wrong issuer: {iss}")
+    
+    # 3. Check audience
+    aud = payload.get("aud")
+    if "account" not in aud and aud != "account":
+        raise InvalidToken(f"Wrong audience: {aud}")
+    
+    # 4. Check subject (user ID) exists
+    sub = payload.get("sub")
+    if not sub:
+        raise InvalidToken("Missing subject claim")
+```
+
+#### Step 4: Extract User Context
+
+Once the token is verified, we extract user information for authorization:
+
+```python
+@app.get("/api/movies")
+async def list_movies(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    current_user contains:
+    {
+        "sub": "user-id",
+        "preferred_username": "movieuser",
+        "email": "movieuser@example.com",
+        "exp": 1732191045,
+        "realm_access": {
+            "roles": ["default-roles-movie-realm"]
+        }
+    }
+    """
+    
+    # User is authenticated and authorized
+    logger.info(f"User {current_user['preferred_username']} accessed movies")
+    return movies_service.list_movies(page=1, page_size=20)
+```
+
+#### Why This Approach is Secure
+
+| Aspect | Security Measure |
+|--------|------------------|
+| **Signature** | RSA public key verification prevents tampering |
+| **Expiration** | Short-lived tokens (5 min default) limit exposure |
+| **Issuer Check** | Ensures token came from our Keycloak instance |
+| **Key Rotation** | JWKS endpoint allows key updates without redeployment |
+| **No Secrets** | Public key is public; we never share private key |
+| **HTTP Only** | Bearer tokens should be sent over HTTPS only |
+
+---
 
 ### Getting an Access Token
 
