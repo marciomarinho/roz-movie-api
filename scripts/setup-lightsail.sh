@@ -74,11 +74,10 @@ print_header "Step 2: Installing Development Tools"
 echo "Installing: git curl wget gcc make python3 python3-pip python3-devel"
 
 PACKAGES="git curl wget gcc make python3 python3-pip python3-devel"
-for pkg in $PACKAGES; do
-    echo -n "  Installing $pkg... "
-    sudo yum install -y $pkg > /dev/null 2>&1 || print_error "Failed to install $pkg"
-    echo -e "${GREEN}done${NC}"
-done
+
+# Install all packages at once (more reliable)
+echo "Running: sudo yum install -y $PACKAGES"
+sudo yum install -y $PACKAGES > /dev/null 2>&1 || print_error "Failed to install development tools"
 
 print_success "All development tools installed"
 
