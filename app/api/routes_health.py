@@ -6,9 +6,4 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 async def health_check() -> dict[str, str]:
-    """Health check endpoint.
-
-    Returns:
-        dict: Status response.
-    """
     return {"status": "ok"}
