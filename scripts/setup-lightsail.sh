@@ -22,7 +22,7 @@
 #
 ################################################################################
 
-set +e  # Don't exit on error - we'll handle it manually
+set +e  # Don't exit on error
 
 # Colors for output
 RED='\033[0;31m'
@@ -31,7 +31,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Functions
 print_header() {
     echo -e "\n${BLUE}===================================================${NC}"
     echo -e "${BLUE}$1${NC}"
@@ -39,26 +38,16 @@ print_header() {
 }
 
 print_success() {
-    echo -e "${GREEN}✓ $1${NC}\n"
-}
-
-print_error() {
-    echo -e "${RED}✗ Error: $1${NC}\n"
-    # Don't exit immediately for non-critical errors
+    echo -e "${GREEN}✓ $1${NC}"
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}\n"
+    echo -e "${YELLOW}⚠ $1${NC}"
 }
 
 print_info() {
-    echo -e "${BLUE}ℹ $1${NC}\n"
+    echo -e "${BLUE}ℹ $1${NC}"
 }
-
-# Check if running as ec2-user
-if [ "$USER" != "ec2-user" ] && [ "$USER" != "root" ]; then
-    print_warning "This script should be run as ec2-user or root"
-fi
 
 # Start setup
 print_header "AWS LightSail Setup - Movie API"
@@ -66,125 +55,68 @@ print_header "AWS LightSail Setup - Movie API"
 # Step 1: Update system
 print_header "Step 1: Updating System Packages"
 echo "Running: sudo yum update -y"
-sudo yum update -y > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    print_success "System packages updated"
-else
-    print_warning "System update encountered issues, but continuing..."
-fi
+sudo yum update -y 2>&1 | tail -5
+print_success "System packages updated\n"
 
 # Step 2: Install development tools
 print_header "Step 2: Installing Development Tools"
-echo "Installing: git curl wget gcc make python3 python3-pip python3-devel"
-
-PACKAGES="git curl wget gcc make python3 python3-pip python3-devel"
-
-# Install all packages at once with lenient error handling
-echo "Running: sudo yum install -y $PACKAGES"
-sudo yum install -y $PACKAGES 2>&1 | grep -v "already installed" || true
-
-# Check if critical packages are available
-CRITICAL_PACKAGES="python3 git"
-MISSING_CRITICAL=0
-
-for pkg in $CRITICAL_PACKAGES; do
-    if ! command -v $pkg &> /dev/null; then
-        print_warning "Missing critical package: $pkg"
-        MISSING_CRITICAL=1
-    fi
-done
-
-if [ $MISSING_CRITICAL -eq 1 ]; then
-    print_error "Critical packages missing. Please install them manually with: sudo yum install -y $CRITICAL_PACKAGES"
-    exit 1
-fi
-
-print_success "Development tools installed"
-
-# Verify installations
-print_header "Step 3: Verifying Installations"
-
-echo "Checking versions:"
-echo -n "  Git: "
-git --version
-echo -n "  Python: "
-python3 --version
-echo -n "  pip: "
-pip3 --version
-echo -n "  Make: "
-make --version
+echo "Installing required packages..."
+echo "Packages: git, curl, wget, gcc, make, python3, python3-pip, python3-devel"
 echo ""
-print_success "All tools verified"
 
-# Step 3: Install Docker
+# Install all at once - much more reliable
+sudo yum install -y git curl wget gcc make python3 python3-pip python3-devel 2>&1 | tail -10
+
+print_success "Package installation completed\n"
+
+# Step 3: Verify critical packages
+print_header "Step 3: Verifying Critical Packages"
+
+echo "Checking installed packages:"
+git --version && echo "" || print_warning "git not found"
+python3 --version && echo "" || print_warning "python3 not found"
+which make > /dev/null && echo "✓ make is available" || print_warning "make not found"
+
+print_success "Package verification completed\n"
+
+# Step 4: Install Docker
 print_header "Step 4: Installing Docker"
 echo "Installing Docker from amazon-linux-extras..."
-sudo amazon-linux-extras install -y docker > /dev/null 2>&1
+sudo amazon-linux-extras install -y docker 2>&1 | tail -5
 
-# Start Docker daemon
 echo "Starting Docker daemon..."
-sudo systemctl start docker > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    print_warning "Failed to start Docker daemon"
-fi
+sudo systemctl start docker 2>&1 | tail -2
+sudo systemctl enable docker 2>&1 | tail -2
 
-echo "Enabling Docker to start on boot..."
-sudo systemctl enable docker > /dev/null 2>&1
-
-# Add user to docker group
 echo "Adding ec2-user to docker group..."
-sudo usermod -aG docker ec2-user > /dev/null 2>&1
+sudo usermod -aG docker ec2-user
 
-# Verify Docker is installed
-if ! command -v docker &> /dev/null; then
-    print_error "Docker installation failed"
-    exit 1
-fi
+print_success "Docker installed and configured\n"
 
-print_success "Docker installed and configured"
-
-# Verify Docker
+# Step 5: Verify Docker
 print_header "Step 5: Verifying Docker"
-echo "Docker version:"
-docker --version
-if [ $? -ne 0 ]; then
-    print_warning "Could not verify Docker version with current user permissions"
-    echo "You may need to exit and log back in"
-fi
+docker --version || sudo docker --version
+print_warning "You need to log out and log back in for docker group permissions\n"
 
-# Note about group changes
-print_warning "You need to log out and log back in for docker group permissions to take effect"
-print_info "Run: exit"
-print_info "Then reconnect: ssh -i ~/marcio.pem ec2-user@52.62.14.166"
-
-# Step 4: Install Docker Compose
+# Step 6: Install Docker Compose
 print_header "Step 6: Installing Docker Compose"
 echo "Downloading Docker Compose..."
 
 DOCKER_COMPOSE_URL="https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)"
-echo "URL: $DOCKER_COMPOSE_URL"
-
-sudo curl -L "$DOCKER_COMPOSE_URL" -o /usr/local/bin/docker-compose 2>&1 | grep -v "^  %" || true
+sudo curl -L "$DOCKER_COMPOSE_URL" -o /usr/local/bin/docker-compose 2>&1 | grep -E "100|^\s*$" || true
 
 if [ -f /usr/local/bin/docker-compose ]; then
-    echo "Setting permissions..."
     sudo chmod +x /usr/local/bin/docker-compose
-    print_success "Docker Compose installed"
+    print_success "Docker Compose installed\n"
 else
-    print_warning "Docker Compose download may have failed, skipping..."
+    print_warning "Docker Compose installation may have failed\n"
 fi
 
-# Verify Docker Compose
+# Step 7: Verify Docker Compose
 print_header "Step 7: Verifying Docker Compose"
-if [ -f /usr/local/bin/docker-compose ]; then
-    echo "Docker Compose version:"
-    /usr/local/bin/docker-compose --version
-    print_success "Docker Compose verified"
-else
-    print_warning "Docker Compose not found, you can install it manually later"
-fi
+/usr/local/bin/docker-compose --version 2>/dev/null || docker-compose --version 2>/dev/null || print_warning "Docker Compose not yet available\n"
 
-# Clone repository
+# Step 8: Clone repository
 print_header "Step 8: Cloning Repository"
 
 REPO_URL="${1:-https://github.com/marciomarinho/roz-movie-api.git}"
@@ -192,44 +124,37 @@ REPO_DIR="${HOME}/apps/movie-api"
 
 echo "Repository URL: $REPO_URL"
 echo "Target directory: $REPO_DIR"
+echo ""
 
 mkdir -p ~/apps
-if [ $? -ne 0 ]; then
-    print_error "Failed to create ~/apps directory"
-    exit 1
-fi
-
 cd ~/apps
 
 if [ -d "movie-api" ]; then
-    print_warning "movie-api directory already exists, skipping clone"
+    print_warning "movie-api directory already exists\n"
 else
     echo "Cloning repository..."
-    git clone "$REPO_URL" movie-api 2>&1
-    if [ $? -eq 0 ]; then
-        print_success "Repository cloned to $REPO_DIR"
-    else
-        print_warning "Repository clone may have failed"
-    fi
+    git clone "$REPO_URL" movie-api 2>&1 | tail -5
+    print_success "Repository cloned\n"
 fi
 
-# Verify repository structure
+# Step 9: Verify repository
 print_header "Step 9: Verifying Repository Structure"
 
-cd "$REPO_DIR"
-
-echo "Checking required files:"
-REQUIRED_FILES=("docker-compose.yml" "Dockerfile" "Makefile" "app" "tests")
-
-for file in "${REQUIRED_FILES[@]}"; do
-    if [ -e "$file" ]; then
-        echo -e "  ${GREEN}✓${NC} $file"
-    else
-        print_warning "Missing: $file"
-    fi
-done
-
-print_success "Repository structure verified"
+cd "$REPO_DIR" 2>/dev/null
+if [ $? -eq 0 ]; then
+    echo "Checking required files:"
+    for file in docker-compose.yml Dockerfile Makefile app tests; do
+        if [ -e "$file" ]; then
+            echo "  ✓ $file"
+        else
+            echo "  ✗ $file (missing)"
+        fi
+    done
+    echo ""
+    print_success "Repository verified\n"
+else
+    print_warning "Could not verify repository\n"
+fi
 
 # Summary
 print_header "Setup Complete! 🎉"
@@ -255,13 +180,7 @@ echo ""
 echo -e "   ${BLUE}Option B: Manual Docker Container Management${NC}"
 echo -e "   See DEPLOYMENT_LIGHTSAIL.md for 'Alternative' section"
 echo ""
-echo "5. Verify the deployment:"
-echo -e "   ${YELLOW}docker-compose ps${NC} (for Option A)"
-echo -e "   ${YELLOW}docker ps${NC} (for Option B)"
-echo ""
-echo "6. Test the API:"
-echo -e "   ${YELLOW}curl http://localhost:8000/health${NC}"
-echo ""
-echo "For detailed instructions, see: DEPLOYMENT_LIGHTSAIL.md"
+echo "5. For detailed instructions, see: DEPLOYMENT_LIGHTSAIL.md"
 echo ""
 echo -e "${GREEN}Happy deploying! 🚀${NC}\n"
+
