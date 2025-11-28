@@ -77,7 +77,7 @@ fi
 print_header "Step 2: Installing Development Tools"
 echo "Installing: git curl wget gcc make python3 python3-pip python3-devel"
 
-PACKAGES="git wget gcc make python3 python3-pip python3-devel"
+PACKAGES="git curl wget gcc make python3 python3-pip python3-devel"
 
 # Install all packages at once with lenient error handling
 echo "Running: sudo yum install -y $PACKAGES"
