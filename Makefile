@@ -224,55 +224,27 @@ test: check-docker test-unit test-integration
 test-unit: check-python
 	@echo "$(BLUE)Running unit tests...$(NC)"
 ifdef OS
-	@if exist $(VENV)\Scripts\python.exe ( \
-		$(VENV)\Scripts\python -m pytest tests/unit -v --tb=short \
-	) else ( \
-		$(PYTHON) -m pytest tests/unit -v --tb=short \
-	)
+	@$(VENV)\Scripts\python -m pytest tests/unit -v --tb=short
 else
-	@if [ -f $(VENV)/bin/python ]; then \
-		$(VENV)/bin/python -m pytest tests/unit -v --tb=short; \
-	else \
-		$(PYTHON) -m pytest tests/unit -v --tb=short; \
-	fi
+	@$(VENV)/bin/python -m pytest tests/unit -v --tb=short
 endif
-	@echo "$(GREEN)✓ Unit tests passed$(NC)"
-
 test-integration: check-python docker-status
 	@echo "$(BLUE)Running integration tests...$(NC)"
 ifdef OS
-	@if exist $(VENV)\Scripts\python.exe ( \
-		$(VENV)\Scripts\python -m pytest tests/integration -v --tb=short \
-	) else ( \
-		$(PYTHON) -m pytest tests/integration -v --tb=short \
-	)
+	@$(VENV)\Scripts\python -m pytest tests/integration -v --tb=short
 else
-	@if [ -f $(VENV)/bin/python ]; then \
-		$(VENV)/bin/python -m pytest tests/integration -v --tb=short; \
-	else \
-		$(PYTHON) -m pytest tests/integration -v --tb=short; \
-	fi
+	@$(VENV)/bin/python -m pytest tests/integration -v --tb=short
 endif
 	@echo "$(GREEN)✓ Integration tests passed$(NC)"
 
 coverage: check-python docker-status
 	@echo "$(BLUE)Running tests with coverage...$(NC)"
 ifdef OS
-	@if exist $(VENV)\Scripts\python.exe ( \
-		$(VENV)\Scripts\python -m pytest --cov=app --cov-report=html --cov-report=term-missing -v \
-	) else ( \
-		$(PYTHON) -m pytest --cov=app --cov-report=html --cov-report=term-missing -v \
-	)
+	@$(VENV)\Scripts\python -m pytest --cov=app --cov-report=html --cov-report=term-missing -v
 else
-	@if [ -f $(VENV)/bin/python ]; then \
-		$(VENV)/bin/python -m pytest --cov=app --cov-report=html --cov-report=term-missing -v; \
-	else \
-		$(PYTHON) -m pytest --cov=app --cov-report=html --cov-report=term-missing -v; \
-	fi
+	@$(VENV)/bin/python -m pytest --cov=app --cov-report=html --cov-report=term-missing -v
 endif
-	@echo "$(GREEN)✓ Coverage report generated (open htmlcov/index.html to view)$(NC)"
-
-# Docker Commands
+	@echo "$(GREEN)✓ Coverage report generated (open htmlcov/index.html to view)$(NC)"# Docker Commands
 docker-up: check-docker
 	@echo "$(BLUE)Starting Docker services...$(NC)"
 	@$(DOCKER_COMPOSE) up -d
