@@ -136,12 +136,15 @@ def create_client(token):
             headers={"Authorization": f"Bearer {token}"}
         )
         if response.status_code == 200:
-            clients = response.json()
-            for client in clients:
-                if client.get("clientId") == KEYCLOAK_CLIENT_ID:
-                    client_id = client.get("id")
-                    log_warning(f"Client {KEYCLOAK_CLIENT_ID} already exists with ID: {client_id}")
-                    return client_id
+            try:
+                clients = response.json()
+                for client in clients:
+                    if client.get("clientId") == KEYCLOAK_CLIENT_ID:
+                        client_id = client.get("id")
+                        log_warning(f"Client {KEYCLOAK_CLIENT_ID} already exists with ID: {client_id}")
+                        return client_id
+            except Exception as e:
+                log_warning(f"Could not parse existing clients response: {e}")
         
         # Client doesn't exist, create new one
         response = requests.post(
@@ -165,18 +168,31 @@ def create_client(token):
         )
         
         if response.status_code == 201:
-            client_data = response.json()
-            client_id = client_data.get("id")
-            log_success(f"Client {KEYCLOAK_CLIENT_ID} created with ID: {client_id}")
-            return client_id
+            try:
+                client_data = response.json()
+                client_id = client_data.get("id")
+                log_success(f"Client {KEYCLOAK_CLIENT_ID} created with ID: {client_id}")
+                return client_id
+            except Exception as json_error:
+                log_error(f"Created client but could not parse response JSON: {json_error}")
+                log_error(f"Response text: {response.text}")
+                # Try to extract client ID from Location header
+                if "Location" in response.headers:
+                    client_id = response.headers["Location"].split("/")[-1]
+                    log_success(f"Client created with ID from Location header: {client_id}")
+                    return client_id
+                return None
         else:
             log_error(f"Failed to create client: {response.status_code}")
             if response.text:
                 log_error(f"Response: {response.text}")
+            log_error(f"Response headers: {dict(response.headers)}")
             return None
             
     except Exception as e:
         log_error(f"Error creating client: {e}")
+        import traceback
+        log_error(f"Traceback: {traceback.format_exc()}")
         return None
 
 
@@ -370,6 +386,19 @@ def main():
     secret = get_client_secret(token, client_id)
     if not secret:
         sys.exit(1)
+    
+    # Save credentials to .env.keycloak file for test scripts
+    try:
+        with open(".env.keycloak", "w") as f:
+            f.write(f"KEYCLOAK_URL={KEYCLOAK_URL}\n")
+            f.write(f"KEYCLOAK_REALM={KEYCLOAK_REALM}\n")
+            f.write(f"KEYCLOAK_CLIENT_ID={KEYCLOAK_CLIENT_ID}\n")
+            f.write(f"CLIENT_SECRET={secret}\n")
+            f.write(f"KEYCLOAK_TEST_USERNAME={KEYCLOAK_TEST_USERNAME}\n")
+            f.write(f"KEYCLOAK_TEST_PASSWORD={KEYCLOAK_TEST_PASSWORD}\n")
+        log_success("Saved Keycloak credentials to .env.keycloak")
+    except Exception as e:
+        log_warning(f"Could not save credentials to .env.keycloak: {e}")
     
     # Create test user
     if not create_test_user(token):

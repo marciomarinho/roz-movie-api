@@ -7,7 +7,7 @@
 #   --user=postgres \
 #   --password=mysecretpassword \
 #   --drop-table --create-table
-#   --csv-path=data/movies.csv
+#   --csv-path=data/movies_large.csv
 
 # python scripts/load_movies.py --dbname=postgres --user=postgres --password=mysecretpassword --drop-table --create-table --csv-path=../data/movies.csv
 

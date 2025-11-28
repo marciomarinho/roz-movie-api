@@ -30,11 +30,34 @@ class IntegrationTestSettings(BaseSettings):
     api_key_enabled: bool = False
     api_key: Optional[str] = None
     
+    # Keycloak configuration for tests
+    keycloak_url: str = "http://localhost:8080"
+    keycloak_realm: str = "movie-realm"
+    keycloak_client_id: str = "movie-api-client"
+    keycloak_client_secret: Optional[str] = None
+    keycloak_test_user: str = "movieuser"
+    keycloak_test_password: str = "moviepassword"
+    
     class Config:
         """Pydantic config."""
         env_file = ".env.test"
         env_prefix = "INTEGRATION_TEST_"
         case_sensitive = False
+    
+    def __init__(self, **data):
+        """Initialize and read CLIENT_SECRET from .env.keycloak if available."""
+        super().__init__(**data)
+        # Try to read CLIENT_SECRET from .env.keycloak if not already set
+        if not self.keycloak_client_secret and os.path.exists(".env.keycloak"):
+            try:
+                with open(".env.keycloak", "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("CLIENT_SECRET="):
+                            self.keycloak_client_secret = line.split("=", 1)[1].strip('"\'')
+                            break
+            except Exception:
+                pass
 
 
 def get_integration_test_settings() -> IntegrationTestSettings:

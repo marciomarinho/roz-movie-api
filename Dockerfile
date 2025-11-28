@@ -21,8 +21,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
+COPY migrate.sh .
 COPY conftest.py .
 COPY data/ ./data/
+
+# Make migrate script executable
+RUN chmod +x /app/migrate.sh
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app

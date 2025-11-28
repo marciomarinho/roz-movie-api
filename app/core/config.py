@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     # Authentication
     api_key: Optional[str] = None
 
+    # Keycloak/OAuth2 Configuration
+    keycloak_url: str = "http://localhost:8080"
+    keycloak_realm: str = "movie-realm"
+    keycloak_client_id: str = "movie-api-client"
+    keycloak_client_secret: Optional[str] = None
+    
+    # Enable/disable authentication (for dev/test)
+    auth_enabled: bool = True
+
     # Logging
     log_level: str = "INFO"
 

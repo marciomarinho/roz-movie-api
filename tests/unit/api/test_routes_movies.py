@@ -60,14 +60,19 @@ def app(mock_service):
         # Skip API key verification in tests
         return None
     
+    async def override_verify_bearer_token():
+        # Skip bearer token verification in unit tests
+        return {}
+    
     app.include_router(router)
     
     # Apply overrides
     from app.api.routes_movies import get_movies_service
-    from app.deps.auth import verify_api_key
+    from app.deps.auth import verify_api_key, verify_bearer_token
     
     app.dependency_overrides[get_movies_service] = override_get_movies_service
     app.dependency_overrides[verify_api_key] = override_verify_api_key
+    app.dependency_overrides[verify_bearer_token] = override_verify_bearer_token
     
     return app
 

@@ -3,11 +3,11 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.deps.auth import verify_api_key
+from app.deps.auth import verify_bearer_token
 from app.models.movie import MovieRead, PaginatedMovies
 from app.services.movies_service import MoviesService
 
-router = APIRouter(prefix="/api", tags=["movies"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(prefix="/api", tags=["movies"], dependencies=[Depends(verify_bearer_token)])
 
 
 def get_movies_service() -> MoviesService:

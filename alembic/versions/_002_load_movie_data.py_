@@ -1,0 +1,69 @@
+"""Load movie data from CSV.
+
+Revision ID: 002
+Revises: 001
+Create Date: 2025-11-28 00:00:00.000000
+
+"""
+import csv
+import re
+import os
+from pathlib import Path
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision = '002'
+down_revision = '001'
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    """Load movies from CSV file."""
+    # Get the path to the data file
+    base_dir = Path(__file__).parent.parent.parent
+    csv_file = base_dir / 'data' / 'movies_small.csv'
+    
+    if not csv_file.exists():
+        print(f"Warning: CSV file not found at {csv_file}")
+        return
+    
+    # Read CSV and insert data
+    movies_table = sa.table(
+        'movies',
+        sa.column('movie_id', sa.Integer),
+        sa.column('title', sa.String),
+        sa.column('year', sa.Integer),
+        sa.column('genres', sa.String),
+    )
+    
+    with open(csv_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        rows = []
+        for row in reader:
+            # Parse genres as a PostgreSQL array format
+            genres = row['genres'].split('|') if row.get('genres') else []
+            
+            # Extract year from title if present (format: "Title (YYYY)")
+            title = row['title']
+            year = None
+            match = re.search(r'\((\d{4})\)\s*$', title)
+            if match:
+                year = int(match.group(1))
+            
+            rows.append({
+                'movie_id': int(row['movieId']),
+                'title': title,
+                'year': year,
+                'genres': genres,
+            })
+        
+        if rows:
+            op.bulk_insert(movies_table, rows)
+            print(f"Loaded {len(rows)} movies from CSV")
+
+
+def downgrade() -> None:
+    """Delete all movies."""
+    op.execute("DELETE FROM movies")

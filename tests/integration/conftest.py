@@ -173,6 +173,8 @@ def test_settings(postgres_container) -> Settings:
             f"User={db_user}, Pass={bool(db_password)}"
         )
 
+    settings = IntegrationTestSettings()
+    
     return Settings(
         db_host=host,
         db_port=int(port),
@@ -180,6 +182,11 @@ def test_settings(postgres_container) -> Settings:
         db_user=db_user,
         db_password=db_password,
         api_key="test-api-key-123",
+        keycloak_url=settings.keycloak_url,
+        keycloak_realm=settings.keycloak_realm,
+        keycloak_client_id=settings.keycloak_client_id,
+        keycloak_client_secret=settings.keycloak_client_secret,
+        auth_enabled=True,
     )
 
 
@@ -251,6 +258,76 @@ def client(app: FastAPI) -> TestClient:
         TestClient: HTTP test client.
     """
     return TestClient(app)
+
+
+
+
+@pytest.fixture(scope="function")
+def bearer_token() -> str:
+    """Get a bearer token from Keycloak for authenticated requests.
+    
+    Returns:
+        str: Bearer token to use in Authorization header.
+        
+    Raises:
+        Exception: If unable to obtain token from Keycloak.
+    """
+    settings = IntegrationTestSettings()
+    
+    try:
+        from tests.integration.keycloak_client import KeycloakTestClient
+        
+        keycloak_client = KeycloakTestClient(
+            keycloak_url=settings.keycloak_url,
+            realm=settings.keycloak_realm,
+            client_id=settings.keycloak_client_id,
+            client_secret=settings.keycloak_client_secret,
+            username=settings.keycloak_test_user,
+            password=settings.keycloak_test_password,
+        )
+        
+        token = keycloak_client.get_token()
+        print(f"Obtained bearer token: {token}")
+        return token
+    except Exception as e:
+        print(f"[!] Failed to obtain bearer token from Keycloak: {e}")
+        # For local testing, return a mock token that will fail but allow tests to structure properly
+        # In CI/Docker, Keycloak will be running
+        raise
+
+
+@pytest.fixture(scope="function")
+def authenticated_client(client: TestClient, bearer_token: str) -> TestClient:
+    """Create a TestClient with bearer token already in headers.
+    
+    This fixture injects the Authorization header with bearer token to all requests.
+    
+    Args:
+        client: The base TestClient.
+        bearer_token: The bearer token from Keycloak.
+        
+    Returns:
+        TestClient: Client with Authorization header set.
+    """
+    # Store the original request method
+    original_request = client.request
+    
+    def request_with_auth(method, url, **kwargs):
+        # Add Authorization header if not already present
+        if "headers" not in kwargs or kwargs["headers"] is None:
+            kwargs["headers"] = {}
+        
+        # Check if authorization header is already present (case-insensitive)
+        has_auth = any(k.lower() == "authorization" for k in kwargs["headers"].keys())
+        
+        if not has_auth:
+            kwargs["headers"]["Authorization"] = f"Bearer {bearer_token}"
+        
+        return original_request(method, url, **kwargs)
+    
+    # Monkey-patch the request method
+    client.request = request_with_auth
+    return client
 
 
 @pytest.fixture(scope="function")

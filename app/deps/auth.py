@@ -39,3 +39,63 @@ async def verify_api_key(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
         )
+
+
+async def verify_bearer_token(
+    authorization: Optional[str] = Header(None),
+) -> dict:
+    """Verify bearer token from Authorization header (Keycloak OAuth2).
+
+    Args:
+        authorization: Authorization header value (Bearer <token>).
+
+    Returns:
+        dict: Decoded token claims.
+
+    Raises:
+        HTTPException: 401 if token is missing, invalid, or expired.
+    """
+    settings = get_settings()
+
+    # If auth is disabled, skip verification
+    if not settings.auth_enabled:
+        return {}
+
+    if not authorization:
+        logger.warning("Request missing Authorization header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Extract bearer token
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        logger.warning(f"Invalid authorization header format: {authorization[:20]}...")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Authorization header format",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = parts[1]
+
+    try:
+        # Import here to avoid circular imports and handle missing dependencies gracefully
+        from jose import JWTError
+
+        from app.core.keycloak import KeycloakTokenValidator
+
+        validator = KeycloakTokenValidator()
+        claims = validator.verify_token(token)
+        logger.debug(f"Token verified for user: {claims.get('preferred_username')}")
+        return claims
+
+    except Exception as e:
+        logger.warning(f"Token verification failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e

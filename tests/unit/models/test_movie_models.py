@@ -44,10 +44,17 @@ class TestMovieModel:
         assert movie.genres == []
 
     def test_movie_missing_required_fields(self):
-        """Test that Movie requires all fields."""
-        with pytest.raises(ValidationError) as exc_info:
-            Movie(movie_id=1, title="Test")  # Missing year and genres
-        assert "field_required" in str(exc_info.typename).lower() or "missing" in str(exc_info.value).lower()
+        """Test that Movie requires only movie_id and title."""
+        # year and genres are optional, so only movie_id and title are required
+        movie = Movie(movie_id=1, title="Test")  # This should work
+        assert movie.movie_id == 1
+        assert movie.title == "Test"
+        assert movie.year is None
+        assert movie.genres == []
+        
+        # But movie_id and title are still required
+        with pytest.raises(ValidationError):
+            Movie(title="Test Only")  # Missing movie_id
 
     def test_movie_invalid_year_type(self):
         """Test Movie with invalid year type."""

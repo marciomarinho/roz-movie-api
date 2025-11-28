@@ -21,3 +21,6 @@ psycopg2-binary==2.9.11
 requests==2.31.0
 testcontainers==3.7.0
 sqlalchemy==2.0.25
+alembic==1.17.2
+python-jose[cryptography]==3.3.0
+cryptography==42.0.0
