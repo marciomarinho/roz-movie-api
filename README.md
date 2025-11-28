@@ -1074,6 +1074,47 @@ docker-compose down
 docker-compose down -v
 ```
 
+### Manual Docker Deployment (Without Docker Compose)
+
+For a production-like deployment using individual Docker containers with proper networking, volumes, and health checks:
+
+```bash
+# Download and run the manual deployment script
+curl -fsSL https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/deploy-docker-manual.sh | bash
+```
+
+**What the script does:**
+- ✅ Creates a custom Docker bridge network (`movie-api-network`)
+- ✅ Deploys PostgreSQL with persistent volume
+- ✅ Deploys Keycloak (OAuth2/OIDC server)
+- ✅ Runs database migrations
+- ✅ Builds and deploys the Movie API application
+- ✅ Configures health checks for all services
+- ✅ Tests end-to-end OAuth2 authentication flow
+- ✅ Displays deployment summary with access points
+
+**Services:**
+- API: http://localhost:8000
+- Keycloak: http://localhost:8080
+- Database: localhost:5432 (internal)
+
+**Useful commands after deployment:**
+
+```bash
+# View logs
+docker logs -f movie-api-app
+
+# Stop all containers
+docker stop movie-db movie-keycloak movie-api-app
+
+# Remove all containers and network
+docker rm movie-db movie-keycloak movie-api-app
+docker network rm movie-api-network
+docker volume rm movie-db-data
+```
+
+This approach demonstrates production-ready practices with proper service orchestration, networking, and health monitoring.
+
 ### Environment Variables
 
 | Variable | Default | Purpose |

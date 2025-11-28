@@ -195,7 +195,28 @@ docker-compose up -d
 
 ## Alternative: Build and Run Docker Containers Locally (Without Docker Compose)
 
-If you prefer to build Docker images locally on the EC2 instance and manage containers directly:
+If you prefer to build Docker images locally on the EC2 instance and manage containers directly (production-grade approach with proper networking, volumes, and health checks), use the provided automated script:
+
+### Quick Setup with Automated Script (Recommended)
+
+```bash
+# Download and run the production-grade deployment script
+curl -fsSL https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/deploy-docker-manual.sh | bash
+```
+
+This script automates everything below (Steps 6A-6J) and includes:
+- ✅ Custom Docker network creation
+- ✅ PostgreSQL deployment with persistent storage
+- ✅ Keycloak OAuth2 server setup
+- ✅ Database migrations
+- ✅ Application build and deployment
+- ✅ Health checks for all services
+- ✅ End-to-end authentication testing
+- ✅ Deployment summary with useful commands
+
+### Manual Setup (Step-by-Step)
+
+If you prefer to run each step manually instead of using the script:
 
 ### Step 6A: Load Environment Variables
 
