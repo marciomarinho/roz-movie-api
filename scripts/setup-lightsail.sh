@@ -22,7 +22,7 @@
 #
 ################################################################################
 
-set -e  # Exit on any error
+set +e  # Don't exit on error - we'll handle it manually
 
 # Colors for output
 RED='\033[0;31m'
@@ -44,7 +44,7 @@ print_success() {
 
 print_error() {
     echo -e "${RED}✗ Error: $1${NC}\n"
-    exit 1
+    # Don't exit immediately for non-critical errors
 }
 
 print_warning() {
@@ -66,8 +66,12 @@ print_header "AWS LightSail Setup - Movie API"
 # Step 1: Update system
 print_header "Step 1: Updating System Packages"
 echo "Running: sudo yum update -y"
-sudo yum update -y > /dev/null 2>&1 || print_error "Failed to update system"
-print_success "System packages updated"
+sudo yum update -y > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    print_success "System packages updated"
+else
+    print_warning "System update encountered issues, but continuing..."
+fi
 
 # Step 2: Install development tools
 print_header "Step 2: Installing Development Tools"
@@ -75,11 +79,27 @@ echo "Installing: git curl wget gcc make python3 python3-pip python3-devel"
 
 PACKAGES="git curl wget gcc make python3 python3-pip python3-devel"
 
-# Install all packages at once (more reliable)
+# Install all packages at once with lenient error handling
 echo "Running: sudo yum install -y $PACKAGES"
-sudo yum install -y $PACKAGES > /dev/null 2>&1 || print_error "Failed to install development tools"
+sudo yum install -y $PACKAGES 2>&1 | grep -v "already installed" || true
 
-print_success "All development tools installed"
+# Check if critical packages are available
+CRITICAL_PACKAGES="python3 git"
+MISSING_CRITICAL=0
+
+for pkg in $CRITICAL_PACKAGES; do
+    if ! command -v $pkg &> /dev/null; then
+        print_warning "Missing critical package: $pkg"
+        MISSING_CRITICAL=1
+    fi
+done
+
+if [ $MISSING_CRITICAL -eq 1 ]; then
+    print_error "Critical packages missing. Please install them manually with: sudo yum install -y $CRITICAL_PACKAGES"
+    exit 1
+fi
+
+print_success "Development tools installed"
 
 # Verify installations
 print_header "Step 3: Verifying Installations"
@@ -99,24 +119,38 @@ print_success "All tools verified"
 # Step 3: Install Docker
 print_header "Step 4: Installing Docker"
 echo "Installing Docker from amazon-linux-extras..."
-sudo amazon-linux-extras install -y docker > /dev/null 2>&1 || print_error "Failed to install Docker"
+sudo amazon-linux-extras install -y docker > /dev/null 2>&1
 
 # Start Docker daemon
 echo "Starting Docker daemon..."
-sudo systemctl start docker > /dev/null 2>&1 || print_error "Failed to start Docker"
+sudo systemctl start docker > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    print_warning "Failed to start Docker daemon"
+fi
+
 echo "Enabling Docker to start on boot..."
-sudo systemctl enable docker > /dev/null 2>&1 || print_error "Failed to enable Docker"
+sudo systemctl enable docker > /dev/null 2>&1
 
 # Add user to docker group
 echo "Adding ec2-user to docker group..."
-sudo usermod -aG docker ec2-user > /dev/null 2>&1 || print_error "Failed to add user to docker group"
+sudo usermod -aG docker ec2-user > /dev/null 2>&1
+
+# Verify Docker is installed
+if ! command -v docker &> /dev/null; then
+    print_error "Docker installation failed"
+    exit 1
+fi
 
 print_success "Docker installed and configured"
 
 # Verify Docker
 print_header "Step 5: Verifying Docker"
 echo "Docker version:"
-sudo docker --version || print_error "Docker verification failed"
+docker --version
+if [ $? -ne 0 ]; then
+    print_warning "Could not verify Docker version with current user permissions"
+    echo "You may need to exit and log back in"
+fi
 
 # Note about group changes
 print_warning "You need to log out and log back in for docker group permissions to take effect"
@@ -130,17 +164,25 @@ echo "Downloading Docker Compose..."
 DOCKER_COMPOSE_URL="https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)"
 echo "URL: $DOCKER_COMPOSE_URL"
 
-sudo curl -L "$DOCKER_COMPOSE_URL" -o /usr/local/bin/docker-compose > /dev/null 2>&1 || print_error "Failed to download Docker Compose"
+sudo curl -L "$DOCKER_COMPOSE_URL" -o /usr/local/bin/docker-compose 2>&1 | grep -v "^  %" || true
 
-echo "Setting permissions..."
-sudo chmod +x /usr/local/bin/docker-compose || print_error "Failed to set permissions"
-
-print_success "Docker Compose installed"
+if [ -f /usr/local/bin/docker-compose ]; then
+    echo "Setting permissions..."
+    sudo chmod +x /usr/local/bin/docker-compose
+    print_success "Docker Compose installed"
+else
+    print_warning "Docker Compose download may have failed, skipping..."
+fi
 
 # Verify Docker Compose
 print_header "Step 7: Verifying Docker Compose"
-echo "Docker Compose version:"
-/usr/local/bin/docker-compose --version || print_error "Docker Compose verification failed"
+if [ -f /usr/local/bin/docker-compose ]; then
+    echo "Docker Compose version:"
+    /usr/local/bin/docker-compose --version
+    print_success "Docker Compose verified"
+else
+    print_warning "Docker Compose not found, you can install it manually later"
+fi
 
 # Clone repository
 print_header "Step 8: Cloning Repository"
@@ -151,15 +193,24 @@ REPO_DIR="${HOME}/apps/movie-api"
 echo "Repository URL: $REPO_URL"
 echo "Target directory: $REPO_DIR"
 
-mkdir -p ~/apps || print_error "Failed to create ~/apps directory"
+mkdir -p ~/apps
+if [ $? -ne 0 ]; then
+    print_error "Failed to create ~/apps directory"
+    exit 1
+fi
+
 cd ~/apps
 
 if [ -d "movie-api" ]; then
     print_warning "movie-api directory already exists, skipping clone"
 else
     echo "Cloning repository..."
-    git clone "$REPO_URL" movie-api > /dev/null 2>&1 || print_error "Failed to clone repository"
-    print_success "Repository cloned to $REPO_DIR"
+    git clone "$REPO_URL" movie-api 2>&1
+    if [ $? -eq 0 ]; then
+        print_success "Repository cloned to $REPO_DIR"
+    else
+        print_warning "Repository clone may have failed"
+    fi
 fi
 
 # Verify repository structure
