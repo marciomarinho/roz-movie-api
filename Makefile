@@ -1,4 +1,4 @@
-.PHONY: help setup install install-venv clean format lint test test-unit test-integration coverage docker-up docker-down docker-restart docker-logs docker-status docker-rebuild db-migrate db-downgrade db-revision run run-dev freeze check-python check-docker info keycloak-setup keycloak-verify keycloak-test-auth
+.PHONY: help setup dev-setup test-setup prod-like install install-venv clean format lint test test-unit test-integration coverage docker-up docker-down docker-restart docker-logs docker-status docker-rebuild db-migrate db-downgrade db-revision run run-dev freeze check-python check-docker info keycloak-setup keycloak-verify keycloak-test-auth
 
 # Variables
 PYTHON := python
@@ -20,7 +20,10 @@ help:
 	@echo "$(BLUE)================================$(NC)"
 	@echo ""
 	@echo "$(GREEN)Setup & Dependencies:$(NC)"
-	@echo "  make setup              Create virtual environment and install dependencies"
+	@echo "  make setup              Full setup: venv, deps, docker infra, Keycloak, app"
+	@echo "  make dev-setup          Dev only: venv, deps, docker infra (db + keycloak, NO app)"
+	@echo "  make test-setup         Test setup: venv, deps, docker infra + app"
+	@echo "  make prod-like          Production-like: everything running (same as setup)"
 	@echo "  make install            Install dependencies into virtual environment"
 	@echo "  make freeze             Generate requirements.txt from current environment"
 	@echo "  make clean              Remove virtual environment, caches, and build artifacts"
@@ -67,16 +70,22 @@ help:
 	@echo ""
 
 # Setup & Dependencies
+
+# Full setup: Everything for development (infra + app)
 setup: check-python check-docker
 	@echo "$(BLUE)Setting up development environment...$(NC)"
 	@$(PYTHON) -m venv $(VENV)
 	@echo "$(GREEN)✓ Virtual environment created$(NC)"
 	@$(MAKE) install-venv
 	@echo ""
-	@echo "$(BLUE)Starting Docker services...$(NC)"
-	@$(DOCKER_COMPOSE) up -d
-	@echo "$(GREEN)✓ Docker services started (db migrations running...)$(NC)"
-	@sleep 10
+	@echo "$(BLUE)Starting Docker services (db, keycloak, migrations, app)...$(NC)"
+	@$(DOCKER_COMPOSE) --profile app up -d
+	@echo "$(GREEN)✓ Docker services started$(NC)"
+ifdef OS
+	@powershell -Command "Start-Sleep -Seconds 15"
+else
+	@sleep 15
+endif
 	@echo ""
 	@echo "$(BLUE)Initializing Keycloak...$(NC)"
 	@$(MAKE) keycloak-setup
@@ -85,6 +94,10 @@ setup: check-python check-docker
 	@echo "$(GREEN)Setup complete!$(NC)"
 	@echo "$(GREEN)=============================================$(NC)"
 	@echo ""
+	@echo "$(YELLOW)API is running at: http://localhost:8000$(NC)"
+	@echo "$(YELLOW)Keycloak is running at: http://localhost:8080$(NC)"
+	@echo "$(YELLOW)PostgreSQL is running at: localhost:5432$(NC)"
+	@echo ""
 	@echo "$(YELLOW)To activate the virtual environment, run:$(NC)"
 ifdef OS
 	@echo "  $(VENV)\\Scripts\\activate"
@@ -92,11 +105,69 @@ else
 	@echo "  source $(VENV)/bin/activate"
 endif
 	@echo ""
-	@echo "$(YELLOW)Then you can use:$(NC)"
-	@echo "  make run-dev          # Run with hot reload"
-	@echo "  make test             # Run all tests"
-	@echo "  make docker-logs      # View Docker logs"
+
+# Developer setup: Just infrastructure (no app)
+dev-setup: check-python check-docker
+	@echo "$(BLUE)Starting development infrastructure (db + keycloak only)...$(NC)"
+	@$(PYTHON) -m venv $(VENV)
+	@echo "$(GREEN)✓ Virtual environment created$(NC)"
+	@$(MAKE) install-venv
 	@echo ""
+	@$(DOCKER_COMPOSE) up -d
+	@echo "$(GREEN)✓ Docker services started (db, keycloak)$(NC)"
+ifdef OS
+	@powershell -Command "Start-Sleep -Seconds 15"
+else
+	@sleep 15
+endif
+	@echo ""
+	@echo "$(BLUE)Initializing Keycloak...$(NC)"
+	@$(MAKE) keycloak-setup
+	@echo ""
+	@echo "$(GREEN)=============================================$(NC)"
+	@echo "$(GREEN)Dev setup complete!$(NC)"
+	@echo "$(GREEN)=============================================$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Ready for development. Services running:$(NC)"
+	@echo "  - PostgreSQL: localhost:5432$(NC)"
+	@echo "  - Keycloak: http://localhost:8080$(NC)"
+	@echo ""
+	@echo "$(YELLOW)To run the app locally: make run-dev$(NC)"
+	@echo "$(YELLOW)To run integration tests: make test-setup; make test-integration$(NC)"
+	@echo ""
+
+# Test setup: Infrastructure + app for integration testing
+test-setup: check-python check-docker
+	@echo "$(BLUE)Starting test environment (db + keycloak + app)...$(NC)"
+	@$(PYTHON) -m venv $(VENV)
+	@echo "$(GREEN)✓ Virtual environment created$(NC)"
+	@$(MAKE) install-venv
+	@echo ""
+	@$(DOCKER_COMPOSE) --profile app up -d
+	@echo "$(GREEN)✓ Docker services started$(NC)"
+ifdef OS
+	@powershell -Command "Start-Sleep -Seconds 15"
+else
+	@sleep 15
+endif
+	@echo ""
+	@echo "$(BLUE)Initializing Keycloak...$(NC)"
+	@$(MAKE) keycloak-setup
+	@echo ""
+	@echo "$(GREEN)=============================================$(NC)"
+	@echo "$(GREEN)Test setup complete!$(NC)"
+	@echo "$(GREEN)=============================================$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Ready for testing. Services running:$(NC)"
+	@echo "  - API: http://localhost:8000$(NC)"
+	@echo "  - Keycloak: http://localhost:8080$(NC)"
+	@echo "  - PostgreSQL: localhost:5432$(NC)"
+	@echo ""
+	@echo "$(YELLOW)To run integration tests: make test-integration$(NC)"
+	@echo ""
+
+# Production-like setup: Everything running (same as setup)
+prod-like: setup
 
 install: check-python
 	@echo "$(BLUE)Installing dependencies...$(NC)"

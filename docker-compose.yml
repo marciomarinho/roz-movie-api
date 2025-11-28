@@ -36,31 +36,6 @@ services:
       - movie_net
     restart: unless-stopped
 
-  # One-shot Keycloak setup service
-  # keycloak-setup:
-  #   image: quay.io/keycloak/keycloak:24.0.5
-  #   container_name: movie_api_keycloak_setup
-  #   entrypoint: /bin/sh
-  #   command: ["-c", "/scripts/keycloak-setup.sh"]
-  #   volumes:
-  #     - ./scripts/keycloak-setup.sh:/scripts/keycloak-setup.sh:ro
-  #   environment:
-  #     KEYCLOAK_URL: http://keycloak:8080
-  #     KEYCLOAK_ADMIN: admin
-  #     KEYCLOAK_ADMIN_PASSWORD: admin
-  #     KEYCLOAK_REALM: movie-realm
-  #     KEYCLOAK_CLIENT_ID: movie-api-client
-  #     KEYCLOAK_TEST_USERNAME: movieuser
-  #     KEYCLOAK_TEST_PASSWORD: moviepassword
-  #   depends_on:
-  #     keycloak:
-  #       condition: service_started
-  #   extra_hosts:
-  #     - "keycloak:host-gateway"
-  #   networks:
-  #     - movie_net
-  #   restart: "no"
-
   # Database migration service (runs before app)
   db-migrate:
     build:
@@ -68,6 +43,7 @@ services:
       dockerfile: Dockerfile
     container_name: movie_api_db_migrate
     command: ["/app/migrate.sh"]
+    profiles: ["app"]  # Only runs when app profile is active
     environment:
       DB_HOST: db
       DB_PORT: "5432"
@@ -89,6 +65,7 @@ services:
       dockerfile: Dockerfile
     container_name: movie_api_app
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    profiles: ["app"]  # Only runs when app profile is active
     ports:
       - "8000:8000"
     environment:
