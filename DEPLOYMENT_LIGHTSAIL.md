@@ -4,7 +4,7 @@ This guide walks through deploying the Movie API to an AWS LightSail instance fr
 
 ## Prerequisites
 
-- AWS LightSail instance (Amazon Linux 2)
+- AWS LightSail instance (Amazon Linux 2 OR Amazon Linux 2023)
 - SSH access via key pair
 - Application code ready to deploy
 
@@ -25,18 +25,21 @@ First, update the package manager and install essential tools:
 Use the provided setup script to automate all installations:
 
 ```bash
-# Download and run the setup script
-curl -fsSL https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/setup-lightsail.sh | bash
+# Method 1: Direct download and run (freshest version)
+curl -fsSL https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/setup-lightsail.sh -o /tmp/setup.sh && bash /tmp/setup.sh
 
-# Or if you prefer to review the script first
-wget https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/setup-lightsail.sh
-bash setup-lightsail.sh
+# Method 2: If Method 1 doesn't work, add cache bust
+curl -fsSL "https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/setup-lightsail.sh?$(date +%s)" -o /tmp/setup.sh && bash /tmp/setup.sh
+
+# Method 3: Download and review before running
+wget https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/setup-lightsail.sh -O setup.sh
+bash setup.sh
 ```
 
 The script will:
 - ✅ Update system packages
-- ✅ Install git, curl, wget, gcc, make, python3, pip3
-- ✅ Install Docker and Docker Compose
+- ✅ Install git, wget, gcc, make, python3, pip3
+- ✅ Install Docker and Docker Compose (works on AL2 and AL2023)
 - ✅ Configure Docker permissions
 - ✅ Clone the repository
 - ✅ Display next steps
