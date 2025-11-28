@@ -61,11 +61,11 @@ print_success "System packages updated\n"
 # Step 2: Install development tools
 print_header "Step 2: Installing Development Tools"
 echo "Installing required packages..."
-echo "Packages: git, curl, wget, gcc, make, python3, python3-pip, python3-devel"
+echo "Packages: git, wget, gcc, make, python3, python3-pip, python3-devel"
 echo ""
 
-# Install all at once - much more reliable
-sudo yum install -y git curl wget gcc make python3 python3-pip python3-devel 2>&1 | tail -10
+# Use --allowerasing to resolve curl conflicts on AL2023
+sudo yum install -y --allowerasing git wget gcc make python3 python3-pip python3-devel 2>&1 | tail -10
 
 print_success "Package installation completed\n"
 
@@ -81,8 +81,17 @@ print_success "Package verification completed\n"
 
 # Step 4: Install Docker
 print_header "Step 4: Installing Docker"
-echo "Installing Docker from amazon-linux-extras..."
-sudo amazon-linux-extras install -y docker 2>&1 | tail -5
+echo "Installing Docker..."
+
+# For Amazon Linux 2023, use dnf
+if command -v dnf &> /dev/null; then
+    echo "Using dnf to install Docker..."
+    sudo dnf install -y docker 2>&1 | tail -10
+else
+    # Fallback to yum
+    echo "Using yum to install Docker..."
+    sudo yum install -y docker 2>&1 | tail -10
+fi
 
 echo "Starting Docker daemon..."
 sudo systemctl start docker 2>&1 | tail -2
