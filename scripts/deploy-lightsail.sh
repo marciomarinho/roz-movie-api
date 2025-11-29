@@ -191,17 +191,17 @@ test_rds_connectivity() {
     
     echo "Waiting for RDS to be ready..."
     echo "Target: $DB_HOST:$DB_PORT"
-    echo "Database: $DB_NAME"
+    echo "Master user: $DB_USER"
     echo ""
     
     while [ $attempt -le $max_attempts ]; do
         echo -n "Attempt $attempt/$max_attempts: "
         
-        # Use a simple container to test connectivity
+        # First, test connection to default postgres database
         if docker run --rm --network host \
             -e PGPASSWORD="$DB_PASSWORD" \
             postgres:15-alpine \
-            psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1" > /dev/null 2>&1; then
+            psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "SELECT 1" > /dev/null 2>&1; then
             print_success "RDS is ready\n"
             return 0
         fi
@@ -221,6 +221,36 @@ test_rds_connectivity() {
     echo "3. Ensure database credentials are correct"
     echo "4. Check that RDS instance is running in AWS Console"
     exit 1
+}
+
+create_database() {
+    print_header "Creating Database"
+    
+    echo "Checking if database '$DB_NAME' exists..."
+    
+    # Check if database exists
+    if docker run --rm --network host \
+        -e PGPASSWORD="$DB_PASSWORD" \
+        postgres:15-alpine \
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+        print_success "Database '$DB_NAME' already exists\n"
+        return 0
+    fi
+    
+    print_warning "Database '$DB_NAME' does not exist, creating it...\n"
+    
+    # Create the database
+    docker run --rm --network host \
+        -e PGPASSWORD="$DB_PASSWORD" \
+        postgres:15-alpine \
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" > /dev/null 2>&1
+    
+    if [ $? -eq 0 ]; then
+        print_success "Database '$DB_NAME' created successfully\n"
+    else
+        print_error "Failed to create database"
+        exit 1
+    fi
 }
 
 build_docker_image() {
@@ -326,6 +356,7 @@ validate_env
 install_docker
 setup_env_file
 test_rds_connectivity
+create_database
 build_docker_image
 run_migrations
 start_application
