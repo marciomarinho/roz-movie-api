@@ -142,7 +142,43 @@ check_prerequisites() {
         print_error "Git is not installed"
         exit 1
     fi
-    print_success "Git is installed\n"
+    print_success "Git is installed"
+
+    print_section "Checking psql (PostgreSQL client)..."
+    if ! command -v psql &> /dev/null; then
+        print_warning "psql not found, installing PostgreSQL client..."
+        
+        # Detect OS and install accordingly
+        if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            
+            if [ "$ID" = "amzn" ]; then
+                # Amazon Linux 2
+                print_section "Installing postgresql15-client on Amazon Linux..."
+                sudo yum install -y postgresql15-client > /dev/null 2>&1
+            elif [ "$ID" = "ubuntu" ] || [ "$ID_LIKE" = "debian" ]; then
+                # Ubuntu/Debian
+                print_section "Installing postgresql-client on Ubuntu/Debian..."
+                sudo apt-get update > /dev/null 2>&1
+                sudo apt-get install -y postgresql-client > /dev/null 2>&1
+            else
+                print_error "Unsupported OS: $ID"
+                echo "Please install postgresql client manually and try again"
+                exit 1
+            fi
+        fi
+        
+        if ! command -v psql &> /dev/null; then
+            print_error "Failed to install psql"
+            exit 1
+        fi
+        
+        print_success "PostgreSQL client installed"
+    else
+        print_success "psql is installed"
+    fi
+    
+    echo ""
 }
 
 clone_repository() {
