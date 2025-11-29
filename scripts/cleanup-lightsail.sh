@@ -94,6 +94,52 @@ remove_images() {
     fi
 }
 
+remove_packages() {
+    print_header "Removing Installed Packages"
+    
+    print_section "Detecting OS to remove packages..."
+    
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        
+        if [ "$ID" = "amzn" ]; then
+            # Amazon Linux
+            print_section "Removing packages from Amazon Linux..."
+            
+            # Remove PostgreSQL client
+            if command -v dnf &> /dev/null; then
+                echo "Running: sudo dnf remove -y postgresql15"
+                sudo dnf remove -y postgresql15 > /dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    print_success "PostgreSQL client removed"
+                fi
+            fi
+            
+            # Remove Nginx
+            if command -v dnf &> /dev/null; then
+                echo "Running: sudo dnf remove -y nginx"
+                sudo dnf remove -y nginx > /dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    print_success "Nginx removed"
+                fi
+            fi
+        else
+            # Ubuntu/Debian
+            print_section "Removing packages from Ubuntu/Debian..."
+            
+            echo "Running: sudo apt-get remove -y postgresql-client nginx"
+            sudo apt-get remove -y postgresql-client nginx > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                print_success "PostgreSQL client and Nginx removed"
+            fi
+        fi
+    else
+        print_warning "Could not determine OS type, skipping package removal"
+    fi
+    
+    echo ""
+}
+
 cleanup_nginx() {
     print_header "Cleaning Up Nginx"
     
@@ -138,19 +184,20 @@ cleanup_repository() {
 show_remaining_cleanup() {
     print_header "Additional Manual Cleanup (Optional)"
     
-    echo "If you want to completely remove PostgreSQL client and Nginx:"
+    echo "All major dependencies have been removed. Additional optional cleanup:"
     echo ""
-    echo "  # Remove PostgreSQL client"
-    echo "  sudo dnf remove -y postgresql15"
-    echo ""
-    echo "  # Remove Nginx"
-    echo "  sudo dnf remove -y nginx"
-    echo ""
-    echo "  # Clean up docker volumes (optional)"
+    echo "  # Clean up docker volumes"
     echo "  docker volume prune -f"
     echo ""
     echo "  # Clean up dangling docker images"
     echo "  docker image prune -f"
+    echo ""
+    echo "  # Remove all stopped containers"
+    echo "  docker container prune -f"
+    echo ""
+    echo "  # View remaining docker resources"
+    echo "  docker ps -a"
+    echo "  docker images"
     echo ""
 }
 
@@ -196,6 +243,8 @@ main() {
     echo "  - .env file"
     echo "  - Repository directory (roz-movie-api)"
     echo "  - Nginx Movie API configuration"
+    echo "  - PostgreSQL client (postgresql15)"
+    echo "  - Nginx web server"
     echo ""
     read -p "Are you sure you want to continue? (yes/no): " confirm
     
@@ -209,6 +258,7 @@ main() {
     stop_containers
     remove_containers
     remove_images
+    remove_packages
     cleanup_nginx
     cleanup_env_file
     cleanup_repository
@@ -217,7 +267,7 @@ main() {
     show_remaining_cleanup
     
     print_header "Cleanup Complete!"
-    echo -e "${GREEN}Movie API deployment has been cleaned up.${NC}\n"
+    echo -e "${GREEN}Movie API deployment has been completely cleaned up.${NC}\n"
 }
 
 # Run main function
