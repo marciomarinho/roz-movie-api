@@ -103,43 +103,22 @@ remove_packages() {
         . /etc/os-release
         
         if [ "$ID" = "amzn" ]; then
-            # Amazon Linux
+            # Amazon Linux - batch all packages in one command
             print_section "Removing packages from Amazon Linux..."
             
-            # Remove PostgreSQL client
             if command -v dnf &> /dev/null; then
-                echo "Running: sudo dnf remove -y postgresql15"
-                sudo dnf remove -y postgresql15 > /dev/null 2>&1
+                echo "Running: sudo dnf remove -y postgresql15 nginx docker git"
+                sudo dnf remove -y postgresql15 nginx docker git > /dev/null 2>&1
+                
                 if [ $? -eq 0 ]; then
-                    print_success "PostgreSQL client removed"
+                    print_success "All packages removed successfully"
+                else
+                    print_warning "Some packages may not have been installed, but removal completed"
                 fi
-            fi
-            
-            # Remove Nginx
-            if command -v dnf &> /dev/null; then
-                echo "Running: sudo dnf remove -y nginx"
-                sudo dnf remove -y nginx > /dev/null 2>&1
-                if [ $? -eq 0 ]; then
-                    print_success "Nginx removed"
-                fi
-            fi
-            
-            # Remove Docker
-            if command -v dnf &> /dev/null; then
-                echo "Running: sudo dnf remove -y docker"
-                sudo dnf remove -y docker > /dev/null 2>&1
-                if [ $? -eq 0 ]; then
-                    print_success "Docker removed"
-                fi
-            fi
-            
-            # Remove Git
-            if command -v dnf &> /dev/null; then
-                echo "Running: sudo dnf remove -y git"
-                sudo dnf remove -y git > /dev/null 2>&1
-                if [ $? -eq 0 ]; then
-                    print_success "Git removed"
-                fi
+            else
+                print_warning "dnf not found, trying yum..."
+                sudo yum remove -y postgresql15 nginx docker git > /dev/null 2>&1
+                print_warning "Package removal attempted"
             fi
         else
             # Ubuntu/Debian
