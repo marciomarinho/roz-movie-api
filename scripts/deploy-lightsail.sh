@@ -123,26 +123,45 @@ check_prerequisites() {
 
     print_section "Checking Docker..."
     if ! command -v docker &> /dev/null; then
-        print_error "Docker is not installed"
-        exit 1
+        print_warning "Docker is not installed, installing..."
+        echo "Running: sudo dnf install -y docker"
+        sudo dnf install -y docker > /dev/null 2>&1
+        
+        if [ $? -ne 0 ]; then
+            print_error "Failed to install Docker"
+            exit 1
+        fi
+        print_success "Docker installed"
+    else
+        DOCKER_VERSION=$(docker --version)
+        print_success "Docker installed: $DOCKER_VERSION"
     fi
-    DOCKER_VERSION=$(docker --version)
-    print_success "Docker installed: $DOCKER_VERSION"
 
     print_section "Checking Docker daemon..."
+    sudo systemctl start docker > /dev/null 2>&1
+    sudo systemctl enable docker > /dev/null 2>&1
+    
     if ! docker info > /dev/null 2>&1; then
         print_error "Docker daemon is not running"
-        print_info "Start Docker with: sudo systemctl start docker"
+        print_info "Try starting Docker with: sudo systemctl start docker"
         exit 1
     fi
     print_success "Docker daemon is running"
 
     print_section "Checking Git..."
     if ! command -v git &> /dev/null; then
-        print_error "Git is not installed"
-        exit 1
+        print_warning "Git is not installed, installing..."
+        echo "Running: sudo dnf install -y git"
+        sudo dnf install -y git > /dev/null 2>&1
+        
+        if [ $? -ne 0 ]; then
+            print_error "Failed to install Git"
+            exit 1
+        fi
+        print_success "Git installed"
+    else
+        print_success "Git is installed"
     fi
-    print_success "Git is installed"
 
     print_section "Checking psql (PostgreSQL client)..."
     if ! command -v psql &> /dev/null; then
