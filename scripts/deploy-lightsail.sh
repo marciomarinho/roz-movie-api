@@ -502,12 +502,18 @@ load_movies() {
     
     docker run --rm \
         --name "$container_name" \
-        --env-file .env \
+        -e DB_HOST="$DB_HOST" \
+        -e DB_PORT="$DB_PORT" \
+        -e DB_NAME="$DB_NAME" \
+        -e DB_USER="$DB_USER" \
+        -e DB_PASSWORD="$DB_PASSWORD" \
         movie-api:latest \
         python scripts/load_movies.py \
             --dbname="$DB_NAME" \
             --user="$DB_USER" \
             --password="$DB_PASSWORD" \
+            --host="$DB_HOST" \
+            --port="$DB_PORT" \
             --csv-path=data/movies_large.csv
     
     if [ $? -ne 0 ]; then

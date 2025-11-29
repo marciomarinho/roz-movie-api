@@ -187,6 +187,49 @@ cleanup_env_file() {
     fi
 }
 
+drop_database() {
+    print_header "Dropping RDS Database"
+    
+    # Load environment variables from .env if it exists
+    if [ -f ".env" ]; then
+        print_section "Loading environment from .env..."
+        set -a
+        source .env
+        set +a
+    fi
+    
+    # Check if we have required database variables
+    if [ -z "$DB_HOST" ] || [ -z "$DB_NAME" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
+        print_warning "Database credentials not found, skipping database drop"
+        print_info "Set DB_HOST, DB_NAME, DB_USER, DB_PASSWORD to drop the database"
+        return 0
+    fi
+    
+    print_section "Dropping database '$DB_NAME' from RDS..."
+    
+    export PGPASSWORD="$DB_PASSWORD"
+    
+    # Terminate connections and drop database
+    local drop_output=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "
+        SELECT pg_terminate_backend(pg_stat_activity.pid)
+        FROM pg_stat_activity
+        WHERE pg_stat_activity.datname = '$DB_NAME'
+        AND pid <> pg_backend_pid();
+        
+        DROP DATABASE IF EXISTS \"$DB_NAME\";" 2>&1)
+    
+    local drop_status=$?
+    
+    if [ $drop_status -eq 0 ]; then
+        print_success "Database '$DB_NAME' dropped successfully\n"
+    else
+        print_warning "Could not drop database (it may already be gone)"
+        print_info "Error: $drop_output"
+    fi
+    
+    unset PGPASSWORD
+}
+
 cleanup_repository() {
     print_header "Cleaning Up Repository"
     
@@ -291,6 +334,7 @@ main() {
     remove_images
     remove_packages
     cleanup_nginx
+    drop_database
     cleanup_env_file
     cleanup_repository
     
