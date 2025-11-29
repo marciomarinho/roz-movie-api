@@ -143,6 +143,10 @@ check_prerequisites() {
         exit 1
     fi
     print_success "Git is installed"
+    
+    print_section "Pre-pulling PostgreSQL image (this may take a moment)..."
+    docker pull postgres:15-alpine > /dev/null 2>&1
+    print_success "PostgreSQL image ready\n"
 }
 
 clone_repository() {
@@ -234,15 +238,15 @@ test_rds_connectivity() {
     echo "Master user: $DB_USER"
     echo ""
     
+    export PGPASSWORD="$DB_PASSWORD"
+    
     while [ $attempt -le $max_attempts ]; do
         echo -n "Attempt $attempt/$max_attempts: "
         
         # Test connection to default postgres database
-        if docker run --rm --network host \
-            -e PGPASSWORD="$DB_PASSWORD" \
-            postgres:15-alpine \
-            psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "SELECT 1" > /dev/null 2>&1; then
+        if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "SELECT 1" > /dev/null 2>&1; then
             print_success "RDS is ready\n"
+            unset PGPASSWORD
             return 0
         fi
         
@@ -261,6 +265,11 @@ test_rds_connectivity() {
     echo "2. Verify RDS security group allows port $DB_PORT from LightSail"
     echo "3. Ensure database credentials are correct"
     echo "4. Check that RDS instance is running in AWS Console"
+    echo ""
+    echo "Install psql if needed:"
+    echo "  Amazon Linux 2: sudo yum install -y postgresql"
+    echo "  Ubuntu/Debian: sudo apt-get install -y postgresql-client"
+    unset PGPASSWORD
     exit 1
 }
 
@@ -269,42 +278,29 @@ create_database() {
     
     print_section "Checking if database '$DB_NAME' exists..."
     
-    # Check if database exists
-    local db_exists=false
-    if docker run --rm --network host \
-        -e PGPASSWORD="$DB_PASSWORD" \
-        postgres:15-alpine \
-        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$DB_NAME" 2>/dev/null; then
-        db_exists=true
-    fi
+    # Use psql directly via environment variable - no docker needed
+    export PGPASSWORD="$DB_PASSWORD"
     
-    if [ "$db_exists" = true ]; then
+    # Check if database exists
+    local db_check=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -lqt 2>&1 | cut -d \| -f 1 | grep -w "$DB_NAME")
+    
+    if [ -n "$db_check" ]; then
         print_success "Database '$DB_NAME' already exists\n"
+        unset PGPASSWORD
         return 0
     fi
     
     print_section "Creating database '$DB_NAME'..."
     
-    # Create the database with better error handling
-    local create_output=$(docker run --rm --network host \
-        -e PGPASSWORD="$DB_PASSWORD" \
-        postgres:15-alpine \
-        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" 2>&1)
-    
-    local create_status=$?
-    
-    if [ $create_status -eq 0 ]; then
+    # Create the database
+    if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" > /dev/null 2>&1; then
         print_success "Database '$DB_NAME' created successfully\n"
+        unset PGPASSWORD
     else
         print_error "Failed to create database"
         echo ""
-        echo "Error details:"
-        echo "$create_output"
-        echo ""
-        echo "Troubleshooting:"
-        echo "1. Verify RDS credentials are correct"
-        echo "2. Ensure RDS is accessible from LightSail"
-        echo "3. Check RDS security group rules"
+        echo "Make sure psql is installed: sudo yum install -y postgresql (Amazon Linux) or sudo apt-get install -y postgresql-client (Ubuntu)"
+        unset PGPASSWORD
         exit 1
     fi
 }
