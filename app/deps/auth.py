@@ -44,7 +44,7 @@ async def verify_api_key(
 async def verify_bearer_token(
     authorization: Optional[str] = Header(None),
 ) -> dict:
-    """Verify bearer token from Authorization header (Keycloak OAuth2).
+    """Verify bearer token from Authorization header (Keycloak or Cognito OAuth2).
 
     Args:
         authorization: Authorization header value (Bearer <token>).
@@ -85,11 +85,17 @@ async def verify_bearer_token(
         # Import here to avoid circular imports and handle missing dependencies gracefully
         from jose import JWTError
 
-        from app.core.keycloak import KeycloakTokenValidator
+        from app.core.token_validator import get_token_validator
 
-        validator = KeycloakTokenValidator()
+        validator = get_token_validator()
+        if not validator:
+            logger.debug("Auth disabled, skipping token verification")
+            return {}
+
         claims = validator.verify_token(token)
-        logger.debug(f"Token verified for user: {claims.get('preferred_username')}")
+        logger.debug(
+            f"Token verified for user/client: {claims.get('preferred_username') or claims.get('client_id')}"
+        )
         return claims
 
     except Exception as e:

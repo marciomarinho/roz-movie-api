@@ -1,0 +1,32 @@
+[Unit]
+Description=Movie API - FastAPI Application
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/movie_api
+Environment="PATH=/home/ubuntu/movie_api/venv/bin"
+
+# Load environment variables from .env file
+EnvironmentFile=/home/ubuntu/movie_api/.env
+
+# Command to start the application
+ExecStart=/home/ubuntu/movie_api/venv/bin/uvicorn app.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --log-level info
+
+# Auto-restart on failure
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=movie-api
+
+[Install]
+WantedBy=multi-user.target

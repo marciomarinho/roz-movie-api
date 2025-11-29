@@ -24,14 +24,22 @@ class Settings(BaseSettings):
     # Authentication
     api_key: Optional[str] = None
 
-    # Keycloak/OAuth2 Configuration
+    # Keycloak/OAuth2 Configuration (Local Development)
     keycloak_url: str = "http://localhost:8080"
     keycloak_realm: str = "movie-realm"
     keycloak_client_id: str = "movie-api-client"
     keycloak_client_secret: Optional[str] = None
     
+    # AWS Cognito Configuration (Production)
+    cognito_user_pool_id: Optional[str] = None
+    cognito_region: str = "us-east-1"
+    cognito_jwks_url: Optional[str] = None
+    
     # Enable/disable authentication (for dev/test)
     auth_enabled: bool = True
+    
+    # Auth provider: 'keycloak' or 'cognito'
+    auth_provider: str = "keycloak"
 
     # Logging
     log_level: str = "INFO"
