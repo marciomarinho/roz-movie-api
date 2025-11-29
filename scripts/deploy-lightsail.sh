@@ -154,22 +154,34 @@ check_prerequisites() {
             
             if [ "$ID" = "amzn" ]; then
                 # Amazon Linux 2
-                print_section "Installing postgresql15-client on Amazon Linux..."
-                sudo yum install -y postgresql15-client > /dev/null 2>&1
+                print_section "Installing postgresql on Amazon Linux..."
+                sudo yum install -y postgresql 2>&1 | tail -5
+                if [ ${PIPESTATUS[0]} -ne 0 ]; then
+                    print_warning "yum install failed, trying with yum update first..."
+                    sudo yum update -y > /dev/null 2>&1
+                    sudo yum install -y postgresql 2>&1 | tail -5
+                fi
             elif [ "$ID" = "ubuntu" ] || [ "$ID_LIKE" = "debian" ]; then
                 # Ubuntu/Debian
                 print_section "Installing postgresql-client on Ubuntu/Debian..."
                 sudo apt-get update > /dev/null 2>&1
-                sudo apt-get install -y postgresql-client > /dev/null 2>&1
+                sudo apt-get install -y postgresql-client 2>&1 | tail -5
             else
                 print_error "Unsupported OS: $ID"
                 echo "Please install postgresql client manually and try again"
                 exit 1
             fi
+        else
+            print_error "Cannot determine OS type"
+            exit 1
         fi
         
         if ! command -v psql &> /dev/null; then
             print_error "Failed to install psql"
+            echo ""
+            echo "Manual installation instructions:"
+            echo "  Amazon Linux 2: sudo yum install -y postgresql"
+            echo "  Ubuntu/Debian: sudo apt-get install -y postgresql-client"
             exit 1
         fi
         
