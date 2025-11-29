@@ -123,14 +123,32 @@ remove_packages() {
                     print_success "Nginx removed"
                 fi
             fi
+            
+            # Remove Docker
+            if command -v dnf &> /dev/null; then
+                echo "Running: sudo dnf remove -y docker"
+                sudo dnf remove -y docker > /dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    print_success "Docker removed"
+                fi
+            fi
+            
+            # Remove Git
+            if command -v dnf &> /dev/null; then
+                echo "Running: sudo dnf remove -y git"
+                sudo dnf remove -y git > /dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    print_success "Git removed"
+                fi
+            fi
         else
             # Ubuntu/Debian
             print_section "Removing packages from Ubuntu/Debian..."
             
-            echo "Running: sudo apt-get remove -y postgresql-client nginx"
-            sudo apt-get remove -y postgresql-client nginx > /dev/null 2>&1
+            echo "Running: sudo apt-get remove -y postgresql-client nginx docker.io git"
+            sudo apt-get remove -y postgresql-client nginx docker.io git > /dev/null 2>&1
             if [ $? -eq 0 ]; then
-                print_success "PostgreSQL client and Nginx removed"
+                print_success "PostgreSQL client, Nginx, Docker, and Git removed"
             fi
         fi
     else
@@ -184,20 +202,27 @@ cleanup_repository() {
 show_remaining_cleanup() {
     print_header "Additional Manual Cleanup (Optional)"
     
-    echo "All major dependencies have been removed. Additional optional cleanup:"
+    echo "The following have been automatically removed:"
+    echo "  ✓ Docker and Docker daemon"
+    echo "  ✓ PostgreSQL client"
+    echo "  ✓ Nginx"
+    echo "  ✓ Git"
+    echo "  ✓ Movie API container and image"
+    echo "  ✓ Repository directory"
+    echo "  ✓ Configuration files"
     echo ""
-    echo "  # Clean up docker volumes"
+    echo "Optional manual cleanup for Docker resources:"
+    echo ""
+    echo "  # Clean up docker volumes (if Docker is reinstalled later)"
     echo "  docker volume prune -f"
     echo ""
-    echo "  # Clean up dangling docker images"
-    echo "  docker image prune -f"
+    echo "  # Clean up docker networks"
+    echo "  docker network prune -f"
     echo ""
-    echo "  # Remove all stopped containers"
-    echo "  docker container prune -f"
-    echo ""
-    echo "  # View remaining docker resources"
+    echo "  # View what remains (should be minimal)"
     echo "  docker ps -a"
     echo "  docker images"
+    echo "  docker volume ls"
     echo ""
 }
 
@@ -237,14 +262,20 @@ main() {
     echo -e "$(date)\n"
     
     # Confirm cleanup
-    echo "This will remove:"
-    echo "  - Movie API Docker container"
-    echo "  - Movie API Docker image"
-    echo "  - .env file"
-    echo "  - Repository directory (roz-movie-api)"
-    echo "  - Nginx Movie API configuration"
-    echo "  - PostgreSQL client (postgresql15)"
-    echo "  - Nginx web server"
+    echo "This will completely remove:"
+    echo ""
+    echo "  Application & Configuration:"
+    echo "    - Movie API Docker container"
+    echo "    - Movie API Docker image"
+    echo "    - .env file"
+    echo "    - Repository directory (roz-movie-api)"
+    echo "    - Nginx Movie API configuration"
+    echo ""
+    echo "  System Packages:"
+    echo "    - Docker and Docker daemon"
+    echo "    - PostgreSQL client (postgresql15)"
+    echo "    - Nginx web server"
+    echo "    - Git"
     echo ""
     read -p "Are you sure you want to continue? (yes/no): " confirm
     
@@ -267,7 +298,7 @@ main() {
     show_remaining_cleanup
     
     print_header "Cleanup Complete!"
-    echo -e "${GREEN}Movie API deployment has been completely cleaned up.${NC}\n"
+    echo -e "${GREEN}Movie API deployment and all dependencies have been completely removed.${NC}\n"
 }
 
 # Run main function
