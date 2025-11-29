@@ -167,8 +167,7 @@ check_prerequisites() {
             elif [ "$ID" = "ubuntu" ] || [ "$ID_LIKE" = "debian" ]; then
                 # Ubuntu/Debian
                 print_section "Installing postgresql-client on Ubuntu/Debian..."
-                sudo apt-get update > /dev/null 2>&1
-                sudo apt-get install -y postgresql-client 2>&1 | tail -3
+                sudo apt-get update && sudo apt-get install -y postgresql-client
             else
                 print_error "Unsupported OS: $ID"
                 echo "Please install postgresql client manually and try again"
