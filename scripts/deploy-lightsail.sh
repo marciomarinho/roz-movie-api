@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ################################################################################
-# AWS LightSail Deployment Script - Docker Build & Run
+# AWS LightSail Production Deployment Script - Docker Build & Run
 # 
 # This script automates the deployment of the Movie API to AWS LightSail
 # with AWS Cognito for authentication and AWS RDS for the database.
@@ -25,28 +25,36 @@
 #
 # What it does:
 #   - Validates all required environment variables
-#   - Installs Docker if not present
+#   - Clones the repository if needed
+#   - Checks prerequisites (Docker, Git)
 #   - Creates .env file with production settings
-#   - Tests RDS connectivity before building
+#   - Tests RDS connectivity
+#   - Creates the database if needed
+#   - Cleans up existing containers
 #   - Builds Docker image
 #   - Runs database migrations in container
 #   - Starts the application container on port 8000
 #
 ################################################################################
 
-set -e  # Exit on any error
+set +e  # Don't exit on error, we'll handle gracefully
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 print_header() {
-    echo -e "\n${BLUE}===================================================${NC}"
+    echo -e "\n${BLUE}=========================================================${NC}"
     echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}===================================================${NC}\n"
+    echo -e "${BLUE}=========================================================${NC}\n"
+}
+
+print_section() {
+    echo -e "\n${CYAN}→ $1${NC}"
 }
 
 print_success() {
@@ -110,49 +118,81 @@ validate_env() {
     print_success "All required environment variables are set\n"
 }
 
-install_docker() {
-    print_header "Checking Docker Installation"
+check_prerequisites() {
+    print_header "Checking Prerequisites"
+
+    print_section "Checking Docker..."
+    if ! command -v docker &> /dev/null; then
+        print_error "Docker is not installed"
+        exit 1
+    fi
+    DOCKER_VERSION=$(docker --version)
+    print_success "Docker installed: $DOCKER_VERSION"
+
+    print_section "Checking Docker daemon..."
+    if ! docker info > /dev/null 2>&1; then
+        print_error "Docker daemon is not running"
+        print_info "Start Docker with: sudo systemctl start docker"
+        exit 1
+    fi
+    print_success "Docker daemon is running"
+
+    print_section "Checking Git..."
+    if ! command -v git &> /dev/null; then
+        print_error "Git is not installed"
+        exit 1
+    fi
+    print_success "Git is installed"
+}
+
+clone_repository() {
+    print_header "Cloning Repository"
     
-    if command -v docker &> /dev/null; then
-        print_success "Docker is already installed\n"
-        docker --version
-        echo ""
+    local repo_url="https://github.com/marciomarinho/roz-movie-api.git"
+    local repo_dir="roz-movie-api"
+    
+    # Check if already in a git repository
+    if [ -f "Dockerfile" ] && [ -d "app" ]; then
+        print_success "Already in repository directory\n"
         return 0
     fi
     
-    print_info "Installing Docker...\n"
-    
-    # Detect OS and install Docker
-    if command -v yum &> /dev/null; then
-        # Amazon Linux 2
-        echo "Detected Amazon Linux, installing Docker via yum..."
-        sudo yum install -y docker > /dev/null 2>&1
-    elif command -v apt-get &> /dev/null; then
-        # Debian/Ubuntu
-        echo "Detected Debian/Ubuntu, installing Docker..."
-        sudo apt-get update > /dev/null 2>&1
-        sudo apt-get install -y docker.io > /dev/null 2>&1
+    # Check if repo directory exists
+    if [ -d "$repo_dir" ]; then
+        print_warning "Repository directory already exists\n"
+        cd "$repo_dir"
     else
-        print_error "Could not detect package manager"
+        print_section "Cloning repository from: $repo_url"
+        echo ""
+        git clone "$repo_url" "$repo_dir"
+        
+        if [ $? -ne 0 ]; then
+            print_error "Failed to clone repository"
+            exit 1
+        fi
+        
+        cd "$repo_dir"
+        print_success "Repository cloned\n"
+    fi
+    
+    # Verify we have required files
+    if [ ! -f "Dockerfile" ]; then
+        print_error "Dockerfile not found after cloning"
         exit 1
     fi
     
-    # Start Docker daemon
-    echo "Starting Docker daemon..."
-    sudo systemctl start docker
-    sudo systemctl enable docker
+    if [ ! -d "app" ]; then
+        print_error "app directory not found after cloning"
+        exit 1
+    fi
     
-    # Add current user to docker group
-    echo "Configuring Docker permissions..."
-    sudo usermod -aG docker $(whoami) || true
-    
-    print_success "Docker installed and configured\n"
-    docker --version
-    echo ""
+    print_success "Repository structure verified\n"
 }
 
 setup_env_file() {
     print_header "Creating .env File"
+    
+    print_section "Generating production environment file..."
     
     cat > .env << EOF
 # Production Environment Variables
@@ -189,7 +229,7 @@ test_rds_connectivity() {
     local max_attempts=30
     local attempt=1
     
-    echo "Waiting for RDS to be ready..."
+    print_section "Waiting for RDS to be ready..."
     echo "Target: $DB_HOST:$DB_PORT"
     echo "Master user: $DB_USER"
     echo ""
@@ -197,7 +237,7 @@ test_rds_connectivity() {
     while [ $attempt -le $max_attempts ]; do
         echo -n "Attempt $attempt/$max_attempts: "
         
-        # First, test connection to default postgres database
+        # Test connection to default postgres database
         if docker run --rm --network host \
             -e PGPASSWORD="$DB_PASSWORD" \
             postgres:15-alpine \
@@ -215,6 +255,7 @@ test_rds_connectivity() {
     done
     
     print_error "\nCould not connect to RDS after $max_attempts attempts"
+    echo ""
     echo "Troubleshooting:"
     echo "1. Check RDS endpoint is correct: $DB_HOST"
     echo "2. Verify RDS security group allows port $DB_PORT from LightSail"
@@ -228,11 +269,16 @@ create_database() {
     
     echo "Checking if database '$DB_NAME' exists..."
     
-    # Check if database exists
+    # Check if database exists (don't exit on error with set -e)
+    local db_exists=false
     if docker run --rm --network host \
         -e PGPASSWORD="$DB_PASSWORD" \
         postgres:15-alpine \
-        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$DB_NAME" 2>/dev/null; then
+        db_exists=true
+    fi
+    
+    if [ "$db_exists" = true ]; then
         print_success "Database '$DB_NAME' already exists\n"
         return 0
     fi
@@ -240,12 +286,10 @@ create_database() {
     print_warning "Database '$DB_NAME' does not exist, creating it...\n"
     
     # Create the database
-    docker run --rm --network host \
+    if docker run --rm --network host \
         -e PGPASSWORD="$DB_PASSWORD" \
         postgres:15-alpine \
-        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" > /dev/null 2>&1
-    
-    if [ $? -eq 0 ]; then
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" > /dev/null 2>&1; then
         print_success "Database '$DB_NAME' created successfully\n"
     else
         print_error "Failed to create database"
@@ -265,14 +309,34 @@ build_docker_image() {
     local image_name="movie-api"
     local image_tag="latest"
     
-    echo "Building Docker image: $image_name:$image_tag"
+    print_section "Building Docker image: $image_name:$image_tag"
     echo ""
     
     docker build -t "$image_name:$image_tag" .
     
+    if [ $? -ne 0 ]; then
+        print_error "Failed to build Docker image"
+        exit 1
+    fi
+    
     print_success "Docker image built successfully\n"
+    print_section "Image information:"
     docker images "$image_name"
     echo ""
+}
+
+cleanup_containers() {
+    print_header "Cleaning Up Existing Containers (if any)"
+
+    local container_name="movie-api"
+    
+    if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        print_section "Stopping existing container: $container_name"
+        docker stop "$container_name" 2>/dev/null || true
+        print_section "Removing existing container: $container_name"
+        docker rm "$container_name" 2>/dev/null || true
+        print_success "Cleaned up $container_name\n"
+    fi
 }
 
 run_migrations() {
@@ -280,7 +344,7 @@ run_migrations() {
     
     local container_name="movie-api-migrate-$$"
     
-    echo "Running migrations in temporary container..."
+    print_section "Running migrations in temporary container..."
     echo ""
     
     docker run --rm \
@@ -289,7 +353,11 @@ run_migrations() {
         movie-api:latest \
         alembic upgrade head
     
-    print_success "Database migrations completed\n"
+    if [ $? -ne 0 ]; then
+        print_warning "Migration may have failed"
+    else
+        print_success "Database migrations completed\n"
+    fi
 }
 
 start_application() {
@@ -297,14 +365,7 @@ start_application() {
     
     local container_name="movie-api"
     
-    # Stop existing container if running
-    if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        print_warning "Stopping existing container..."
-        docker stop "$container_name" || true
-        docker rm "$container_name" || true
-    fi
-    
-    echo "Starting application container..."
+    print_section "Starting application container..."
     echo "Container name: $container_name"
     echo "Listening on: 0.0.0.0:8000"
     echo ""
@@ -317,6 +378,11 @@ start_application() {
         movie-api:latest \
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
     
+    if [ $? -ne 0 ]; then
+        print_error "Failed to start container"
+        exit 1
+    fi
+    
     # Give container a moment to start
     sleep 2
     
@@ -324,22 +390,19 @@ start_application() {
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
         print_success "Application container started successfully\n"
         
-        print_header "Container Details"
+        print_section "Container Details"
         docker ps --filter "name=$container_name" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         echo ""
         
-        print_header "Application Status"
-        echo "Container is running. Checking health..."
-        
-        # Wait a bit and check logs
+        print_section "Checking container health..."
         sleep 3
         echo ""
-        echo "Recent logs:"
+        print_section "Recent logs:"
         docker logs --tail 10 "$container_name"
     else
         print_error "Container failed to start"
         echo ""
-        echo "Recent logs:"
+        print_section "Recent logs:"
         docker logs "$container_name" || true
         exit 1
     fi
@@ -383,40 +446,117 @@ clone_repository() {
     print_success "Repository structure verified\n"
 }
 
+clone_repository() {
+    print_header "Cloning Repository"
+    
+    local repo_url="https://github.com/marciomarinho/roz-movie-api.git"
+    local repo_dir="roz-movie-api"
+    
+    # Check if already in a git repository
+    if [ -f "Dockerfile" ] && [ -d "app" ]; then
+        print_success "Already in repository directory\n"
+        return 0
+    fi
+    
+    # Check if repo directory exists
+    if [ -d "$repo_dir" ]; then
+        print_warning "Repository directory already exists\n"
+        cd "$repo_dir"
+    else
+        print_section "Cloning repository from: $repo_url"
+        echo ""
+        git clone "$repo_url" "$repo_dir"
+        
+        if [ $? -ne 0 ]; then
+            print_error "Failed to clone repository"
+            exit 1
+        fi
+        
+        cd "$repo_dir"
+        print_success "Repository cloned\n"
+    fi
+    
+    # Verify we have required files
+    if [ ! -f "Dockerfile" ]; then
+        print_error "Dockerfile not found after cloning"
+        exit 1
+    fi
+    
+    if [ ! -d "app" ]; then
+        print_error "app directory not found after cloning"
+        exit 1
+    fi
+    
+    print_success "Repository structure verified\n"
+}
+
+verify_deployment() {
+    print_header "Verifying Deployment"
+
+    print_section "Testing API health endpoint..."
+    if curl -s http://localhost:8000/api/v1/health | grep -q "ok\|status" > /dev/null 2>&1; then
+        print_success "API is responding"
+    else
+        print_warning "API not yet responding, may still be starting..."
+    fi
+}
+
+display_summary() {
+    print_header "Deployment Complete! 🎉"
+    echo -e "Your Movie API is now running!\n"
+
+    echo "Service Access Points:"
+    echo ""
+    echo -e "  ${CYAN}API:${NC}        http://localhost:8000"
+    echo -e "  ${CYAN}Docs:${NC}       http://localhost:8000/docs"
+    echo ""
+
+    echo "Container Information:"
+    echo ""
+    docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | grep "movie-api"
+    echo ""
+
+    echo "Useful Commands:"
+    echo ""
+    echo -e "  View logs:        ${YELLOW}docker logs -f movie-api${NC}"
+    echo -e "  Stop container:   ${YELLOW}docker stop movie-api${NC}"
+    echo -e "  Restart container:${YELLOW}docker restart movie-api${NC}"
+    echo -e "  Health check:     ${YELLOW}curl http://localhost:8000/api/v1/health${NC}"
+    echo ""
+
+    echo "Next Steps:"
+    echo ""
+    echo "  1. Test the API: http://<lightsail-ip>:8000/docs (Swagger UI)"
+    echo "  2. Check logs: docker logs -f movie-api"
+    echo "  3. Setup systemd service (optional):"
+    echo "     sudo cp movie-api.service /etc/systemd/system/"
+    echo "     sudo systemctl daemon-reload"
+    echo "     sudo systemctl enable movie-api.service"
+    echo ""
+    echo -e "${GREEN}Happy deploying! 🚀${NC}\n"
+}
+
 ################################################################################
 # Main Execution
 ################################################################################
 
-print_header "Movie API - LightSail Production Deployment (Docker)"
+main() {
+    print_header "Movie API - LightSail Production Deployment (Docker)"
+    echo -e "$(date)\n"
 
-# Run all setup steps
-validate_env
-clone_repository
-install_docker
-setup_env_file
-test_rds_connectivity
-create_database
-build_docker_image
-run_migrations
-start_application
+    validate_env
+    check_prerequisites
+    clone_repository
+    setup_env_file
+    test_rds_connectivity
+    create_database
+    cleanup_containers
+    build_docker_image
+    run_migrations
+    start_application
+    verify_deployment
+    display_summary
+}
 
-print_header "Deployment Complete! 🎉"
-echo "Your Movie API is now running!"
-echo ""
-echo "Next steps:"
-echo ""
-echo "1. Verify the application is running:"
-echo -e "   ${YELLOW}curl http://localhost:8000/api/v1/health${NC}"
-echo ""
-echo "2. View application logs:"
-echo -e "   ${YELLOW}docker logs -f movie-api${NC}"
-echo ""
-echo "3. Access API documentation:"
-echo -e "   ${YELLOW}http://<lightsail-ip>:8000/docs${NC}"
-echo ""
-echo "4. Setup systemd service (optional, for auto-restart):"
-echo -e "   ${YELLOW}sudo cp movie-api.service /etc/systemd/system/${NC}"
-echo -e "   ${YELLOW}sudo systemctl daemon-reload${NC}"
-echo -e "   ${YELLOW}sudo systemctl enable movie-api.service${NC}"
-echo ""
-echo -e "${GREEN}Happy deploying! 🚀${NC}\n"
+# Run main function
+main
