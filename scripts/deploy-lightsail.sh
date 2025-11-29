@@ -336,14 +336,25 @@ create_database() {
     
     print_section "Creating database '$DB_NAME'..."
     
-    # Create the database
-    if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" > /dev/null 2>&1; then
+    # Create the database with error output
+    local create_output=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" 2>&1)
+    local create_status=$?
+    
+    if [ $create_status -eq 0 ]; then
         print_success "Database '$DB_NAME' created successfully\n"
         unset PGPASSWORD
     else
         print_error "Failed to create database"
         echo ""
-        echo "Make sure psql is installed: sudo yum install -y postgresql (Amazon Linux) or sudo apt-get install -y postgresql-client (Ubuntu)"
+        echo "Error details:"
+        echo "$create_output"
+        echo ""
+        echo "Troubleshooting:"
+        echo "1. Verify RDS credentials are correct"
+        echo "2. Check that the postgres master user has permissions"
+        echo "3. Try manually:"
+        echo "   export PGPASSWORD='$DB_PASSWORD'"
+        echo "   psql -h '$DB_HOST' -p '$DB_PORT' -U '$DB_USER' -d 'postgres' -c 'CREATE DATABASE \"$DB_NAME\";'"
         unset PGPASSWORD
         exit 1
     fi
