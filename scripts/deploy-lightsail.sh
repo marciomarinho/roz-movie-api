@@ -267,9 +267,9 @@ test_rds_connectivity() {
 create_database() {
     print_header "Creating Database"
     
-    echo "Checking if database '$DB_NAME' exists..."
+    print_section "Checking if database '$DB_NAME' exists..."
     
-    # Check if database exists (don't exit on error with set -e)
+    # Check if database exists
     local db_exists=false
     if docker run --rm --network host \
         -e PGPASSWORD="$DB_PASSWORD" \
@@ -283,16 +283,28 @@ create_database() {
         return 0
     fi
     
-    print_warning "Database '$DB_NAME' does not exist, creating it...\n"
+    print_section "Creating database '$DB_NAME'..."
     
-    # Create the database
-    if docker run --rm --network host \
+    # Create the database with better error handling
+    local create_output=$(docker run --rm --network host \
         -e PGPASSWORD="$DB_PASSWORD" \
         postgres:15-alpine \
-        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" > /dev/null 2>&1; then
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "postgres" -c "CREATE DATABASE \"$DB_NAME\";" 2>&1)
+    
+    local create_status=$?
+    
+    if [ $create_status -eq 0 ]; then
         print_success "Database '$DB_NAME' created successfully\n"
     else
         print_error "Failed to create database"
+        echo ""
+        echo "Error details:"
+        echo "$create_output"
+        echo ""
+        echo "Troubleshooting:"
+        echo "1. Verify RDS credentials are correct"
+        echo "2. Ensure RDS is accessible from LightSail"
+        echo "3. Check RDS security group rules"
         exit 1
     fi
 }
