@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ ./app/
 COPY alembic/ ./alembic/
+COPY scripts/ ./scripts/
 COPY alembic.ini .
 COPY migrate.sh .
 COPY conftest.py .

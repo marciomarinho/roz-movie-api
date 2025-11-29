@@ -496,7 +496,7 @@ load_movies() {
     print_section "Loading movies from CSV into database..."
     echo ""
     
-    docker run --rm \
+    local load_output=$(docker run --rm \
         --name "$container_name" \
         -e DB_HOST="$DB_HOST" \
         -e DB_PORT="$DB_PORT" \
@@ -510,13 +510,20 @@ load_movies() {
             --password="$DB_PASSWORD" \
             --host="$DB_HOST" \
             --port="$DB_PORT" \
-            --csv-path=data/movies_large.csv
+            --csv-path=data/movies_large.csv 2>&1)
     
-    if [ $? -ne 0 ]; then
-        print_warning "Movie data loading may have failed or data already loaded"
+    local load_status=$?
+    
+    if [ $load_status -ne 0 ]; then
+        print_warning "Movie data loading failed or data already loaded"
+        print_info "Output: $load_output"
     else
-        print_success "Movie data loaded successfully\n"
+        print_success "Movie data loaded successfully"
+        if [ ! -z "$load_output" ]; then
+            echo "$load_output"
+        fi
     fi
+    echo ""
 }
 
 start_application() {
