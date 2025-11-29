@@ -345,6 +345,44 @@ start_application() {
     fi
 }
 
+clone_repository() {
+    print_header "Cloning Repository"
+    
+    local repo_url="${1:-https://github.com/marciomarinho/roz-movie-api.git}"
+    local repo_dir="roz-movie-api"
+    
+    # Check if already in a git repository
+    if [ -f "Dockerfile" ] && [ -d "app" ]; then
+        print_success "Already in repository directory\n"
+        return 0
+    fi
+    
+    # Check if repo directory exists
+    if [ -d "$repo_dir" ]; then
+        print_warning "Repository directory already exists\n"
+        cd "$repo_dir"
+    else
+        echo "Cloning repository from: $repo_url"
+        echo ""
+        git clone "$repo_url" "$repo_dir"
+        cd "$repo_dir"
+        print_success "Repository cloned\n"
+    fi
+    
+    # Verify we have required files
+    if [ ! -f "Dockerfile" ]; then
+        print_error "Dockerfile not found after cloning"
+        exit 1
+    fi
+    
+    if [ ! -d "app" ]; then
+        print_error "app directory not found after cloning"
+        exit 1
+    fi
+    
+    print_success "Repository structure verified\n"
+}
+
 ################################################################################
 # Main Execution
 ################################################################################
@@ -353,6 +391,7 @@ print_header "Movie API - LightSail Production Deployment (Docker)"
 
 # Run all setup steps
 validate_env
+clone_repository
 install_docker
 setup_env_file
 test_rds_connectivity
