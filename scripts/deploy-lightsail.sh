@@ -159,12 +159,12 @@ check_prerequisites() {
                 # Try dnf first (AL2023), fallback to yum (AL2)
                 if command -v dnf &> /dev/null; then
                     print_section "Using dnf package manager..."
-                    echo "Running: sudo dnf install -y postgresql"
-                    sudo dnf install -y postgresql
+                    echo "Running: sudo dnf install -y postgresql15"
+                    sudo dnf install -y postgresql15
                 else
                     print_section "Using yum package manager..."
-                    echo "Running: sudo yum install -y postgresql"
-                    sudo yum install -y postgresql
+                    echo "Running: sudo yum install -y postgresql15"
+                    sudo yum install -y postgresql15
                 fi
             else
                 # Ubuntu/Debian and others
@@ -181,10 +181,7 @@ check_prerequisites() {
             print_error "Failed to install psql"
             echo ""
             echo "Manual installation for Amazon Linux 2023:"
-            echo "  sudo dnf install -y postgresql"
-            echo ""
-            echo "Manual installation for Amazon Linux 2:"
-            echo "  sudo amazon-linux-extras install -y postgresql14"
+            echo "  sudo dnf install -y postgresql15"
             exit 1
         fi
         
