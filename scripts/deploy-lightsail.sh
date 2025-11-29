@@ -142,11 +142,7 @@ check_prerequisites() {
         print_error "Git is not installed"
         exit 1
     fi
-    print_success "Git is installed"
-    
-    print_section "Pre-pulling PostgreSQL image (this may take a moment)..."
-    docker pull postgres:15-alpine > /dev/null 2>&1
-    print_success "PostgreSQL image ready\n"
+    print_success "Git is installed\n"
 }
 
 clone_repository() {
@@ -414,88 +410,6 @@ start_application() {
         docker logs "$container_name" || true
         exit 1
     fi
-}
-
-clone_repository() {
-    print_header "Cloning Repository"
-    
-    local repo_url="${1:-https://github.com/marciomarinho/roz-movie-api.git}"
-    local repo_dir="roz-movie-api"
-    
-    # Check if already in a git repository
-    if [ -f "Dockerfile" ] && [ -d "app" ]; then
-        print_success "Already in repository directory\n"
-        return 0
-    fi
-    
-    # Check if repo directory exists
-    if [ -d "$repo_dir" ]; then
-        print_warning "Repository directory already exists\n"
-        cd "$repo_dir"
-    else
-        echo "Cloning repository from: $repo_url"
-        echo ""
-        git clone "$repo_url" "$repo_dir"
-        cd "$repo_dir"
-        print_success "Repository cloned\n"
-    fi
-    
-    # Verify we have required files
-    if [ ! -f "Dockerfile" ]; then
-        print_error "Dockerfile not found after cloning"
-        exit 1
-    fi
-    
-    if [ ! -d "app" ]; then
-        print_error "app directory not found after cloning"
-        exit 1
-    fi
-    
-    print_success "Repository structure verified\n"
-}
-
-clone_repository() {
-    print_header "Cloning Repository"
-    
-    local repo_url="https://github.com/marciomarinho/roz-movie-api.git"
-    local repo_dir="roz-movie-api"
-    
-    # Check if already in a git repository
-    if [ -f "Dockerfile" ] && [ -d "app" ]; then
-        print_success "Already in repository directory\n"
-        return 0
-    fi
-    
-    # Check if repo directory exists
-    if [ -d "$repo_dir" ]; then
-        print_warning "Repository directory already exists\n"
-        cd "$repo_dir"
-    else
-        print_section "Cloning repository from: $repo_url"
-        echo ""
-        git clone "$repo_url" "$repo_dir"
-        
-        if [ $? -ne 0 ]; then
-            print_error "Failed to clone repository"
-            exit 1
-        fi
-        
-        cd "$repo_dir"
-        print_success "Repository cloned\n"
-    fi
-    
-    # Verify we have required files
-    if [ ! -f "Dockerfile" ]; then
-        print_error "Dockerfile not found after cloning"
-        exit 1
-    fi
-    
-    if [ ! -d "app" ]; then
-        print_error "app directory not found after cloning"
-        exit 1
-    fi
-    
-    print_success "Repository structure verified\n"
 }
 
 verify_deployment() {
