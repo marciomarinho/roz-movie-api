@@ -124,8 +124,7 @@ check_prerequisites() {
     print_section "Checking Docker..."
     if ! command -v docker &> /dev/null; then
         print_warning "Docker is not installed, installing..."
-        echo "Running: sudo dnf install -y docker"
-        sudo dnf install -y docker > /dev/null 2>&1
+        sudo dnf install -y docker
         
         if [ $? -ne 0 ]; then
             print_error "Failed to install Docker"
@@ -138,8 +137,8 @@ check_prerequisites() {
     fi
 
     print_section "Checking Docker daemon..."
-    sudo systemctl start docker > /dev/null 2>&1
-    sudo systemctl enable docker > /dev/null 2>&1
+    sudo systemctl start docker 2>/dev/null || true
+    sudo systemctl enable docker 2>/dev/null || true
     
     if ! docker info > /dev/null 2>&1; then
         print_error "Docker daemon is not running"
@@ -151,8 +150,7 @@ check_prerequisites() {
     print_section "Checking Git..."
     if ! command -v git &> /dev/null; then
         print_warning "Git is not installed, installing..."
-        echo "Running: sudo dnf install -y git"
-        sudo dnf install -y git > /dev/null 2>&1
+        sudo dnf install -y git
         
         if [ $? -ne 0 ]; then
             print_error "Failed to install Git"
@@ -178,18 +176,16 @@ check_prerequisites() {
                 # Try dnf first (AL2023), fallback to yum (AL2)
                 if command -v dnf &> /dev/null; then
                     print_section "Using dnf package manager..."
-                    echo "Running: sudo dnf install -y postgresql15"
                     sudo dnf install -y postgresql15
                 else
                     print_section "Using yum package manager..."
-                    echo "Running: sudo yum install -y postgresql15"
                     sudo yum install -y postgresql15
                 fi
             else
                 # Ubuntu/Debian and others
                 print_section "Installing postgresql-client..."
-                echo "Running: sudo apt-get update && sudo apt-get install -y postgresql-client"
-                sudo apt-get update && sudo apt-get install -y postgresql-client
+                sudo apt-get update
+                sudo apt-get install -y postgresql-client
             fi
         else
             print_error "Cannot determine OS type"
