@@ -153,19 +153,22 @@ check_prerequisites() {
             . /etc/os-release
             
             if [ "$ID" = "amzn" ]; then
-                # Amazon Linux 2
-                print_section "Installing postgresql on Amazon Linux..."
-                sudo yum install -y postgresql 2>&1 | tail -5
-                if [ ${PIPESTATUS[0]} -ne 0 ]; then
-                    print_warning "yum install failed, trying with yum update first..."
-                    sudo yum update -y > /dev/null 2>&1
-                    sudo yum install -y postgresql 2>&1 | tail -5
+                # Amazon Linux 2 - need to enable PostgreSQL repo
+                print_section "Installing PostgreSQL client on Amazon Linux..."
+                
+                # First, enable the PostgreSQL repo
+                sudo amazon-linux-extras install -y postgresql14 2>&1 | grep -E "^(Installing|Installed|Error)" || true
+                
+                if [ $? -ne 0 ]; then
+                    # Fallback: try with yum directly
+                    print_warning "amazon-linux-extras failed, trying alternative method..."
+                    sudo yum install -y postgresql-contrib 2>&1 | grep -E "^(Installing|Installed|Error)" || true
                 fi
             elif [ "$ID" = "ubuntu" ] || [ "$ID_LIKE" = "debian" ]; then
                 # Ubuntu/Debian
                 print_section "Installing postgresql-client on Ubuntu/Debian..."
                 sudo apt-get update > /dev/null 2>&1
-                sudo apt-get install -y postgresql-client 2>&1 | tail -5
+                sudo apt-get install -y postgresql-client 2>&1 | tail -3
             else
                 print_error "Unsupported OS: $ID"
                 echo "Please install postgresql client manually and try again"
@@ -179,9 +182,11 @@ check_prerequisites() {
         if ! command -v psql &> /dev/null; then
             print_error "Failed to install psql"
             echo ""
-            echo "Manual installation instructions:"
-            echo "  Amazon Linux 2: sudo yum install -y postgresql"
-            echo "  Ubuntu/Debian: sudo apt-get install -y postgresql-client"
+            echo "Manual installation for Amazon Linux 2:"
+            echo "  sudo amazon-linux-extras install -y postgresql14"
+            echo ""
+            echo "Manual installation for Ubuntu/Debian:"
+            echo "  sudo apt-get update && sudo apt-get install -y postgresql-client"
             exit 1
         fi
         
