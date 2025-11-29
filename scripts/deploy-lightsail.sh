@@ -153,25 +153,24 @@ check_prerequisites() {
             . /etc/os-release
             
             if [ "$ID" = "amzn" ]; then
-                # Amazon Linux 2 - need to enable PostgreSQL repo
+                # Amazon Linux (2 or 2023)
                 print_section "Installing PostgreSQL client on Amazon Linux..."
                 
-                # First, enable the PostgreSQL repo
-                sudo amazon-linux-extras install -y postgresql14 2>&1 | grep -E "^(Installing|Installed|Error)" || true
-                
-                if [ $? -ne 0 ]; then
-                    # Fallback: try with yum directly
-                    print_warning "amazon-linux-extras failed, trying alternative method..."
-                    sudo yum install -y postgresql-contrib 2>&1 | grep -E "^(Installing|Installed|Error)" || true
+                # Try dnf first (AL2023), fallback to yum (AL2)
+                if command -v dnf &> /dev/null; then
+                    print_section "Using dnf package manager..."
+                    echo "Running: sudo dnf install -y postgresql"
+                    sudo dnf install -y postgresql
+                else
+                    print_section "Using yum package manager..."
+                    echo "Running: sudo yum install -y postgresql"
+                    sudo yum install -y postgresql
                 fi
-            elif [ "$ID" = "ubuntu" ] || [ "$ID_LIKE" = "debian" ]; then
-                # Ubuntu/Debian
-                print_section "Installing postgresql-client on Ubuntu/Debian..."
-                sudo apt-get update && sudo apt-get install -y postgresql-client
             else
-                print_error "Unsupported OS: $ID"
-                echo "Please install postgresql client manually and try again"
-                exit 1
+                # Ubuntu/Debian and others
+                print_section "Installing postgresql-client..."
+                echo "Running: sudo apt-get update && sudo apt-get install -y postgresql-client"
+                sudo apt-get update && sudo apt-get install -y postgresql-client
             fi
         else
             print_error "Cannot determine OS type"
@@ -181,11 +180,11 @@ check_prerequisites() {
         if ! command -v psql &> /dev/null; then
             print_error "Failed to install psql"
             echo ""
+            echo "Manual installation for Amazon Linux 2023:"
+            echo "  sudo dnf install -y postgresql"
+            echo ""
             echo "Manual installation for Amazon Linux 2:"
             echo "  sudo amazon-linux-extras install -y postgresql14"
-            echo ""
-            echo "Manual installation for Ubuntu/Debian:"
-            echo "  sudo apt-get update && sudo apt-get install -y postgresql-client"
             exit 1
         fi
         
