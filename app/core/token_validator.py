@@ -90,12 +90,33 @@ class KeycloakTokenValidator(TokenValidator):
         """
         try:
             public_key = self._fetch_public_key()
+            # Decode without audience validation first, but verify expiration
             claims = jwt.decode(
                 token,
                 public_key,
                 algorithms=["RS256"],
-                audience=self.settings.keycloak_client_id,
+                options={"verify_aud": False, "verify_exp": True},  # Verify expiration
             )
+            
+            logger.debug(f"Token claims: {claims}")
+            
+            # Manually validate azp (authorized party) or aud claim
+            azp = claims.get("azp")
+            aud = claims.get("aud")
+            
+            logger.debug(
+                f"Token audience validation: azp={azp}, aud={aud}, "
+                f"expected_client_id={self.settings.keycloak_client_id}"
+            )
+            
+            # Accept if azp matches client_id (preferred for user tokens)
+            # or if aud matches (for service account tokens)
+            if azp != self.settings.keycloak_client_id and aud != self.settings.keycloak_client_id:
+                raise JWTError(
+                    f"Invalid audience. Expected client_id={self.settings.keycloak_client_id}, "
+                    f"got azp={azp}, aud={aud}"
+                )
+            
             logger.debug(f"Keycloak token verified for user: {claims.get('preferred_username')}")
             return claims
 

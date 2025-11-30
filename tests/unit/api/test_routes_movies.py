@@ -166,6 +166,66 @@ class TestListMoviesRoute:
         
         assert response.status_code == 422
 
+    def test_list_movies_invalid_page_size_exceeds_max(self, client, mock_service):
+        """Test listing movies with page_size > 100 (exceeds limit)."""
+        response = client.get("/api/movies?page_size=101")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "page_size" in str(data).lower()
+
+    def test_list_movies_page_size_at_max_boundary(self, client, mock_service):
+        """Test listing movies with page_size = 100 (at max limit)."""
+        response = client.get("/api/movies?page_size=100")
+        
+        assert response.status_code == 200
+        mock_service.get_movies.assert_called_once()
+        call_args = mock_service.get_movies.call_args
+        assert call_args[1]["page_size"] == 100
+
+    def test_list_movies_title_too_long(self, client, mock_service):
+        """Test listing movies with title parameter exceeding max length."""
+        long_title = "x" * 101  # Exceeds 100 char limit
+        response = client.get(f"/api/movies?title={long_title}")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "title" in str(data).lower()
+
+    def test_list_movies_genre_too_long(self, client, mock_service):
+        """Test listing movies with genre parameter exceeding max length."""
+        long_genre = "x" * 51  # Exceeds 50 char limit
+        response = client.get(f"/api/movies?genre={long_genre}")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "genre" in str(data).lower()
+
+    def test_list_movies_year_out_of_range_low(self, client, mock_service):
+        """Test listing movies with year < 1900."""
+        response = client.get("/api/movies?year=1899")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "year" in str(data).lower()
+
+    def test_list_movies_year_out_of_range_high(self, client, mock_service):
+        """Test listing movies with year > 2100."""
+        response = client.get("/api/movies?year=2101")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "year" in str(data).lower()
+
+    def test_list_movies_year_at_valid_range(self, client, mock_service):
+        """Test listing movies with valid year range (1900-2100)."""
+        response = client.get("/api/movies?year=2000")
+        
+        assert response.status_code == 200
+        mock_service.get_movies.assert_called_once()
+        call_args = mock_service.get_movies.call_args
+        assert call_args[1]["year"] == 2000
+
     def test_list_movies_response_structure(self, client, mock_service):
         """Test that list movies response has correct structure."""
         response = client.get("/api/movies")
@@ -213,6 +273,49 @@ class TestSearchMoviesRoute:
         
         # Query parameter is required
         assert response.status_code == 422
+
+    def test_search_movies_query_too_long(self, client, mock_service):
+        """Test search with query parameter exceeding max length."""
+        long_query = "x" * 101  # Exceeds 100 char limit
+        response = client.get(f"/api/movies/search?q={long_query}")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "q" in str(data).lower()
+
+    def test_search_movies_page_size_exceeds_max(self, client, mock_service):
+        """Test search with page_size > 100."""
+        response = client.get("/api/movies/search?q=Toy&page_size=101")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "page_size" in str(data).lower()
+
+    def test_search_movies_page_size_at_max_boundary(self, client, mock_service):
+        """Test search with page_size = 100."""
+        response = client.get("/api/movies/search?q=Toy&page_size=100")
+        
+        assert response.status_code == 200
+        mock_service.search_movies.assert_called_once()
+        call_args = mock_service.search_movies.call_args
+        assert call_args[1]["page_size"] == 100
+
+    def test_search_movies_genre_too_long(self, client, mock_service):
+        """Test search with genre parameter exceeding max length."""
+        long_genre = "x" * 51  # Exceeds 50 char limit
+        response = client.get(f"/api/movies/search?q=Toy&genre={long_genre}")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "genre" in str(data).lower()
+
+    def test_search_movies_year_out_of_range(self, client, mock_service):
+        """Test search with year outside valid range."""
+        response = client.get("/api/movies/search?q=Toy&year=1899")
+        
+        assert response.status_code == 422
+        data = response.json()
+        assert "year" in str(data).lower()
 
     def test_search_movies_with_pagination(self, client, mock_service):
         """Test search with custom pagination."""
