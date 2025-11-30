@@ -462,7 +462,7 @@ build_docker_image() {
     print_section "Building Docker image: $image_name:$image_tag"
     echo ""
     
-    docker build -t "$image_name:$image_tag" .
+    docker build --no-cache -t "$image_name:$image_tag" .
     
     if [ $? -ne 0 ]; then
         print_error "Failed to build Docker image"
