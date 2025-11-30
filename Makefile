@@ -345,15 +345,27 @@ run-dev: check-python docker-status
 # Keycloak Commands
 keycloak-setup: check-python docker-status
 	@echo "$(BLUE)Running Keycloak setup...$(NC)"
-	@$(PYTHON) scripts/keycloak-setup.py
+ifdef OS
+	@$(VENV)/Scripts/python scripts/keycloak-setup.py
+else
+	@$(VENV)/bin/python scripts/keycloak-setup.py
+endif
 
 keycloak-verify: check-python docker-status
 	@echo "$(BLUE)Verifying Keycloak configuration...$(NC)"
-	@$(PYTHON) scripts/verify-keycloak.py
+ifdef OS
+	@$(VENV)/Scripts/python scripts/verify-keycloak.py
+else
+	@$(VENV)/bin/python scripts/verify-keycloak.py
+endif
 
 keycloak-test-auth: check-python docker-status
 	@echo "$(BLUE)Testing authentication flows...$(NC)"
-	@$(PYTHON) scripts/test-auth-flows.py
+ifdef OS
+	@$(VENV)/Scripts/python scripts/test-auth-flows.py
+else
+	@$(VENV)/bin/python scripts/test-auth-flows.py
+endif
 
 get-token: check-python docker-status
 	@echo "$(BLUE)Getting bearer token from Keycloak...$(NC)"
