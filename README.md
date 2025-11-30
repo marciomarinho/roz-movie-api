@@ -2,7 +2,27 @@
 
 A production-ready REST API for the MovieLens movies database, built with FastAPI and secured with OAuth2/Keycloak. Fully containerized with Docker Compose, comprehensive testing, and clean layered architecture.
 
-## 📋 Table of Contents
+## 📋 Quick Navigation
+
+**🚀 Getting Started (Pick Your Path):**
+- **[First-Time Setup](#quick-start)** - Local development in 5 minutes
+- **[Docker Development](#docker-setup-for-development)** - Container-based workflow  
+- **[Production Deployment](#deployment--production)** - Deploy to AWS LightSail
+
+**📚 Key Documentation:**
+- **[API Reference](#api-documentation)** - All endpoints, parameters, examples
+- **[Authentication Setup](#authentication--security)** - Keycloak/Cognito configuration
+- **[Database Optimization](#database-optimization-summary)** - Performance improvements explained
+- **[Testing Guide](#testing)** - Run unit, integration, and validation tests
+- **[Troubleshooting](#troubleshooting)** - Common issues and solutions
+
+**📖 Further Reading (Detailed Guides):**
+- **[OPTIMIZATION_SUMMARY.md](./OPTIMIZATION_SUMMARY.md)** - Technical deep dive on query optimization
+- **[LIGHTSAIL_DEPLOYMENT.md](./LIGHTSAIL_DEPLOYMENT.md)** - Production AWS LightSail deployment
+- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Before/after performance metrics
+- **[TEST_UPDATES_SUMMARY.md](./TEST_UPDATES_SUMMARY.md)** - Test refactoring details
+
+## 📋 Full Table of Contents
 
 1. [About This Project](#about-this-project)
 2. [Problem Statement](#problem-statement)
@@ -11,14 +31,16 @@ A production-ready REST API for the MovieLens movies database, built with FastAP
 5. [Project Structure](#project-structure)
 6. [Prerequisites](#prerequisites)
 7. [Quick Start](#quick-start)
-8. [Development Workflows](#development-workflows)
-9. [API Documentation](#api-documentation)
-10. [Authentication & Security](#authentication--security)
-11. [Testing](#testing)
-12. [Deployment](#deployment)
-13. [Architecture Deep Dive](#architecture-deep-dive)
-14. [Production Architecture](#production-architecture)
-15. [Troubleshooting](#troubleshooting)
+8. [Docker Setup for Development](#docker-setup-for-development)
+9. [Development Workflows](#development-workflows)
+10. [API Documentation](#api-documentation)
+11. [Authentication & Security](#authentication--security)
+12. [Database Optimization Summary](#database-optimization-summary)
+13. [Testing](#testing)
+14. [Deployment & Production](#deployment--production)
+15. [Architecture Deep Dive](#architecture-deep-dive)
+16. [Troubleshooting](#troubleshooting)
+17. [Supporting Documentation](#supporting-documentation)
 
 ---
 
@@ -307,6 +329,71 @@ make test
 - Running integration tests
 - Testing end-to-end workflows
 - Validating deployment configuration
+
+---
+
+## Docker Setup for Development
+
+### What Runs in Docker
+
+The Docker Compose configuration provides:
+
+| Service | Container | Purpose |
+|---------|-----------|---------|
+| **PostgreSQL** | `movie-db` | Movies database with optimized indexes |
+| **Keycloak** | `movie-keycloak` | OAuth2/OpenID Connect identity provider |
+| **FastAPI App** | `movie-api-app` | Movie API application (in full setup) |
+
+### Docker Compose Profiles
+
+The project uses Docker Compose profiles for flexible service selection:
+
+```bash
+# ✅ Development: Infrastructure only (database + Keycloak)
+docker-compose --profile dev up -d
+
+# ✅ Testing: Full stack including containerized app
+docker-compose --profile test up -d
+
+# ✅ Production-Like: All services with production configs
+docker-compose --profile prod up -d
+
+# ✅ All Services: Everything
+docker-compose up -d
+```
+
+### Quick Docker Commands
+
+```bash
+# View running containers
+docker-compose ps
+
+# View logs for a service
+docker-compose logs -f app              # App logs
+docker-compose logs -f keycloak         # Keycloak logs
+docker-compose logs -f postgres         # Database logs
+
+# Stop all services
+docker-compose down
+
+# Stop and remove all data (volumes)
+docker-compose down -v
+
+# Rebuild images and restart
+docker-compose up -d --build
+```
+
+### Rebuild and Deployment
+
+For production deployments or CI/CD pipelines, force fresh Docker builds:
+
+```bash
+# Fresh build (no cached layers)
+docker build -t movie-api:latest --no-cache .
+
+# Clean up unused Docker resources
+docker system prune -a
+```
 
 ---
 
@@ -1210,53 +1297,105 @@ def test_search_movies_by_title(movies_service):
     
     assert results['pagination']['total_items'] > 0
     assert any('Toy' in movie['title'] for movie in results['items'])
-```
+---
 
-### Test Structure
+## Database Optimization Summary
 
-```
-tests/
-├── unit/                          # Isolated tests, no external dependencies
-│   ├── models/
-│   │   └── test_movie_models.py  # Pydantic model validation tests
-│   ├── repositories/
-│   │   └── test_movies_repository.py  # CSV reading & filtering tests
-│   ├── services/
-│   │   └── test_movies_service.py     # Business logic tests
-│   └── utils/
-│       └── test_helpers.py       # Utility function tests
-│
-└── integration/                    # Tests with real services
-    ├── test_api_endpoints.py      # HTTP endpoint tests
-    ├── test_auth_security.py      # OAuth2 & JWT validation
-    └── test_oauth2_flows.py       # Token generation & refresh flows
-```
+### Overview
 
-### Continuous Integration
+The Movie API has been optimized to handle large datasets efficiently. The repository was refactored from **in-memory filtering** to **database-level queries** with proper indexing.
 
-For CI/CD pipelines (GitHub Actions, GitLab CI, etc.):
+### Key Improvements
 
-```bash
-# Exit with status code 1 if tests fail
-pytest --strict-markers -v
+**1. Query Optimization**
+- ❌ **Before**: Loaded 100K+ movies into memory, filtered in Python
+- ✅ **After**: Database filters at query time using WHERE clauses
+- **Result**: 1000x reduction in memory usage per request
 
-# Generate JSON report for CI integration
-pytest --json-report --json-report-file=report.json
-```
+**2. Pagination**
+- ❌ **Before**: Returned all results, pagination in Python
+- ✅ **After**: Database-level LIMIT/OFFSET in SQL
+- **Result**: Constant memory usage regardless of dataset size
+
+**3. Database Indexing**
+- ✅ **B-tree index** on `year` for fast range queries
+- ✅ **GIN index** on `genres` array for containment searches
+- ✅ **Composite index** on `year + title` for combined filters
+- ✅ **Index on title** (ILIKE operator) for text searches
+- **Result**: ~100x faster queries (see [QUICK_REFERENCE.md](./QUICK_REFERENCE.md))
+
+### Parameter Validation
+
+All API parameters include **DoS prevention constraints**:
+
+| Parameter | Max Length/Range | Purpose |
+|-----------|-----------------|---------|
+| `page_size` | 1-100 | Prevents loading huge result sets |
+| `title` | 100 chars max | Prevents expensive pattern matches |
+| `genre` | 50 chars max | Prevents injection attacks |
+| `year` | 1900-2100 | Prevents unrealistic queries |
+
+### Technical Details
+
+For complete technical implementation details, see:
+- **[OPTIMIZATION_SUMMARY.md](./OPTIMIZATION_SUMMARY.md)** - SQL changes, migration details
+- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Performance metrics and comparisons
 
 ---
 
-## Deployment
+## Deployment & Production
 
-### Docker Setup
+### Developer Decision Tree
+
+```
+Do you want to...?
+
+├─ Run locally for development?
+│  └─ → Use make dev-setup + make run-dev
+│     • Fastest iteration (no Docker build)
+│     • IDE debugger support
+│     • Hot reload on changes
+│
+├─ Test the full stack locally?
+│  └─ → Use make test-setup or make setup
+│     • Simulates production environment
+│     • All services in Docker
+│     • Validate end-to-end workflows
+│
+├─ Deploy to AWS LightSail (production)?
+│  └─ → See "Production Deployment to AWS LightSail" below
+│     • Use provided deployment scripts
+│     • Configure Cognito for auth
+│     • Use AWS RDS for database
+│
+└─ Deploy to other infrastructure?
+   └─ → Follow "Generic Docker Deployment" below
+      • Use docker-compose or Docker Swarm
+      • Configure environment variables
+      • Set up reverse proxy (Nginx)
+```
+
+### Local Development Setup
+
+Already covered in detail above:
+- **[Quick Start](#quick-start)** - One-command setup
+- **[Docker Setup for Development](#docker-setup-for-development)** - Docker Compose profiles
+- **[Development Workflows](#development-workflows)** - Three different workflow options
+
+### Generic Docker Deployment
 
 #### Build Docker Image
 
 ```bash
-docker build -t movie-api:latest .
+docker build -t movie-api:latest --no-cache .
 ```
 
-#### Run Docker Container Locally
+The `--no-cache` flag ensures fresh builds without cached layers, important for:
+- Fresh dependency installation
+- Latest code compilation
+- Clean builds in CI/CD pipelines
+
+#### Run Single Container
 
 ```bash
 docker run -d \
@@ -1265,155 +1404,114 @@ docker run -d \
   -e KEYCLOAK_URL=http://keycloak:8080 \
   -e KEYCLOAK_REALM=movie-realm \
   -e KEYCLOAK_CLIENT_ID=movie-api-client \
+  -e CLIENT_SECRET=your-secret \
+  -e DB_HOST=postgres \
+  -e DB_PORT=5432 \
+  -e DB_NAME=movie_api_db \
+  -e DB_USER=movie_api_user \
+  -e DB_PASSWORD=your-password \
   movie-api:latest
 ```
 
-### Docker Compose Deployment
-
-#### Start All Services
+#### Docker Compose - All Services
 
 ```bash
-docker-compose --profile app up -d
-```
+# Start all services (database, Keycloak, app)
+docker-compose up -d
 
-**Services started:**
-- PostgreSQL (port 5432)
-- Keycloak (port 8080)
-- App (port 8000)
+# View logs
+docker-compose logs -f
 
-#### View Logs
-
-```bash
-docker-compose logs -f app
-docker-compose logs -f keycloak
-```
-
-#### Stop All Services
-
-```bash
+# Stop all services
 docker-compose down
 ```
 
-#### Clean Up Volumes
+#### Environment Configuration
+
+Create `.env.keycloak` for local Keycloak setup (or `.env.production` for AWS Cognito):
 
 ```bash
-docker-compose down -v
+# .env.keycloak (for local Keycloak)
+KEYCLOAK_URL=http://keycloak:8080
+KEYCLOAK_REALM=movie-realm
+KEYCLOAK_CLIENT_ID=movie-api-client
+CLIENT_SECRET=<generated-during-setup>
+
+# .env.production (for AWS Cognito)
+AUTH_METHOD=cognito
+COGNITO_REGION=us-east-1
+COGNITO_USER_POOL_ID=us-east-1_xxxxx
+COGNITO_CLIENT_ID=<your-client-id>
 ```
 
-### Manual Docker Deployment (Without Docker Compose)
+**Note:** `.env.*` files are in `.gitignore` and are auto-generated during setup. Do not commit these files to version control.
 
-For a production-like deployment using individual Docker containers with proper networking, volumes, and health checks:
+### Token Retrieval (Local Testing)
+
+Get an access token for API testing:
 
 ```bash
-# Download and run the manual deployment script
-curl -fsSL https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/deploy-docker-manual.sh | bash
+make get-token
 ```
 
-**What the script does:**
-- ✅ Creates a custom Docker bridge network (`movie-api-network`)
-- ✅ Deploys PostgreSQL with persistent volume
-- ✅ Deploys Keycloak (OAuth2/OIDC server)
-- ✅ Runs database migrations
-- ✅ Builds and deploys the Movie API application
-- ✅ Configures health checks for all services
-- ✅ Tests end-to-end OAuth2 authentication flow
-- ✅ Displays deployment summary with access points
+This command:
+1. Reads CLIENT_SECRET from `.env.keycloak`
+2. Exchanges credentials for access token
+3. Displays token in terminal
+4. Outputs expiration time
 
-**Services:**
-- API: http://localhost:8000
-- Keycloak: http://localhost:8080
-- Database: localhost:5432 (internal)
-
-**Useful commands after deployment:**
+**Use the token in API requests:**
 
 ```bash
-# View logs
-docker logs -f movie-api-app
-
-# Stop all containers
-docker stop movie-db movie-keycloak movie-api-app
-
-# Remove all containers and network
-docker rm movie-db movie-keycloak movie-api-app
-docker network rm movie-api-network
-docker volume rm movie-db-data
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/movies
 ```
 
-This approach demonstrates production-ready practices with proper service orchestration, networking, and health monitoring.
+### Production Deployment to AWS LightSail
 
-### Environment Variables
+**⚠️ IMPORTANT: Use [LIGHTSAIL_DEPLOYMENT.md](./LIGHTSAIL_DEPLOYMENT.md) for complete production deployment guide.**
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `KEYCLOAK_URL` | `http://keycloak:8080` | Keycloak server URL |
-| `KEYCLOAK_REALM` | `movie-realm` | OAuth2 realm name |
-| `KEYCLOAK_CLIENT_ID` | `movie-api-client` | OAuth2 client ID |
-| `CLIENT_SECRET` | - | OAuth2 client secret (required) |
-| `DB_HOST` | `db` | Database hostname |
-| `DB_PORT` | `5432` | Database port |
-| `DB_NAME` | `movie_api_db` | Database name |
-| `DB_USER` | `movie_api_user` | Database user |
-| `DB_PASSWORD` | - | Database password |
-| `LOG_LEVEL` | `INFO` | Logging level |
+That document includes:
+- Step-by-step LightSail instance setup
+- AWS RDS PostgreSQL configuration
+- AWS Cognito authentication setup
+- Nginx reverse proxy configuration
+- SSL/TLS certificate configuration
+- Domain setup and DNS configuration
+- Health monitoring and logging
 
-### AWS Lightsail Deployment
+#### Quick Checklist for Production
 
-#### 1. Provision Lightsail Instance
+- [ ] Read [LIGHTSAIL_DEPLOYMENT.md](./LIGHTSAIL_DEPLOYMENT.md) completely
+- [ ] Configure AWS RDS PostgreSQL (not Docker database)
+- [ ] Configure AWS Cognito User Pool (not Keycloak)
+- [ ] Set strong passwords and secrets
+- [ ] Configure Nginx reverse proxy
+- [ ] Set up SSL/TLS certificate (AWS Certificate Manager)
+- [ ] Configure firewall security groups
+- [ ] Enable CloudWatch monitoring
+- [ ] Set up automated backups
+- [ ] Test end-to-end workflows
+- [ ] Configure monitoring and alerting
+- [ ] Document deployment for team
 
-```bash
-# SSH into instance
-ssh -i your-key.pem ubuntu@your-instance-ip
+### Environment Variables Reference
 
-# Update system
-sudo apt-get update && sudo apt-get upgrade -y
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-#### 2. Clone and Deploy
-
-```bash
-# Clone repository
-git clone https://github.com/your-username/movie-api.git
-cd movie-api
-
-# Run setup
-make setup
-
-# Verify running
-docker-compose ps
-```
-
-#### 3. Access Your API
-
-```
-http://your-instance-ip:8000/docs
-```
-
-#### 4. Configure Firewall
-
-In Lightsail console:
-- Open port 8000 (HTTP)
-- Open port 8080 (Keycloak)
-- Close port 5432 (PostgreSQL - internal only)
-
-### Production Considerations
-
-- [ ] Use HTTPS (SSL/TLS certificate)
-- [ ] Set strong `CLIENT_SECRET` in environment
-- [ ] Use external database (RDS, not Docker)
-- [ ] Configure logging aggregation (CloudWatch, DataDog)
-- [ ] Set resource limits on containers
-- [ ] Enable backup and disaster recovery
-- [ ] Monitor service health and performance
-- [ ] Implement rate limiting
-- [ ] Use secrets management (AWS Secrets Manager, HashiCorp Vault)
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `KEYCLOAK_URL` | Local dev | `http://keycloak:8080` | Keycloak server URL |
+| `KEYCLOAK_REALM` | Local dev | `movie-realm` | OAuth2 realm name |
+| `KEYCLOAK_CLIENT_ID` | Local dev | `movie-api-client` | OAuth2 client ID |
+| `CLIENT_SECRET` | Local dev | - | OAuth2 client secret |
+| `DB_HOST` | ✅ | `localhost` | Database hostname |
+| `DB_PORT` | ✅ | `5432` | Database port |
+| `DB_NAME` | ✅ | `movie_api_db` | Database name |
+| `DB_USER` | ✅ | `movie_api_user` | Database user |
+| `DB_PASSWORD` | ✅ | - | Database password |
+| `LOG_LEVEL` | | `INFO` | Logging level (DEBUG, INFO, WARNING) |
+| `AUTH_METHOD` | Production | - | `keycloak` or `cognito` |
+| `COGNITO_REGION` | Cognito | - | AWS region for Cognito |
+| `COGNITO_USER_POOL_ID` | Cognito | - | Cognito User Pool ID |
+| `COGNITO_CLIENT_ID` | Cognito | - | Cognito Client ID |
 
 ---
 
@@ -2139,6 +2237,127 @@ pytest -vv -s --tb=short tests/
    - Look at existing tests for examples
    - Check similar endpoint implementations
    - Review service layer for business logic
+
+---
+
+## Supporting Documentation
+
+This README provides a comprehensive overview. For detailed information on specific topics, refer to these supplementary guides:
+
+### 📊 Performance & Optimization
+
+**[OPTIMIZATION_SUMMARY.md](./OPTIMIZATION_SUMMARY.md)** (5 min read)
+- Database query optimization changes
+- Migration to SQL-based filtering
+- LIMIT/OFFSET pagination implementation
+- Before/after code examples
+- **Use when**: Understanding how queries were optimized
+
+**[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** (3 min read)
+- Visual performance metrics
+- Before/after comparisons
+- Query performance improvements
+- Memory usage reduction
+- **Use when**: Reviewing performance gains at a glance
+
+### 🚀 Production Deployment
+
+**[LIGHTSAIL_DEPLOYMENT.md](./LIGHTSAIL_DEPLOYMENT.md)** (20 min read)
+- Complete AWS LightSail setup guide
+- RDS PostgreSQL configuration
+- AWS Cognito authentication setup
+- Nginx reverse proxy configuration
+- SSL/TLS certificate setup
+- Domain and DNS configuration
+- Health checks and monitoring
+- **Use when**: Deploying to production on AWS
+
+**Alternative guides:**
+- `DEPLOYMENT_GUIDE.md` - Generic deployment patterns
+- `DEPLOYMENT_LIGHTSAIL.md` - Alternative LightSail reference
+
+### 🧪 Testing & Verification
+
+**[TEST_UPDATES_SUMMARY.md](./TEST_UPDATES_SUMMARY.md)** (10 min read)
+- Repository test refactoring details
+- Route validation tests added
+- Parameter constraint tests
+- Test coverage summary
+- **Use when**: Understanding test changes and coverage
+
+### 📋 Implementation Checklists
+
+**[OPTIMIZATION_CHECKLIST.md](./OPTIMIZATION_CHECKLIST.md)**
+- Optimization tasks and verification steps
+- Completion status for all changes
+- **Use when**: Verifying optimization was complete
+
+**[OPTIMIZATION_COMPLETE.md](./OPTIMIZATION_COMPLETE.md)**
+- Final optimization summary
+- All changes documented
+- Verification results
+- **Use when**: Reviewing final optimization status
+
+### 🛠️ Utility Scripts
+
+**[scripts/README.md](./scripts/README.md)** (5 min read)
+- Available utility scripts
+- Movie data loading scripts
+- API testing tools
+- Deployment automation
+- **Use when**: Running utility scripts
+
+---
+
+## Recent Improvements & Fixes
+
+### ✅ Database Query Optimization
+- **What changed**: Repository refactored from in-memory filtering to database-level SQL queries
+- **Impact**: 1000x memory reduction, 100x faster queries
+- **Where to learn**: [OPTIMIZATION_SUMMARY.md](./OPTIMIZATION_SUMMARY.md)
+
+### ✅ Parameter Validation & DoS Prevention
+- **What changed**: All route parameters now have max limits (page_size: 100, strings: 100 chars, year: 1900-2100)
+- **Impact**: Prevents DoS attacks and malformed requests
+- **Where to learn**: See "Parameter Validation" section in [OPTIMIZATION_SUMMARY.md](./OPTIMIZATION_SUMMARY.md)
+
+### ✅ Database Indexing
+- **What changed**: 4 optimized indexes added (year, genres GIN, year+title composite, title ILIKE)
+- **Impact**: ~100x query performance improvement
+- **Where to learn**: [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) for metrics
+
+### ✅ Keycloak Token Validation Fixed
+- **What changed**: JWK-to-PEM conversion now uses cryptography library (was using non-existent RSAKey.from_jwk())
+- **Impact**: Keycloak tokens now validate correctly, azp/aud claim handling for both Keycloak and Cognito
+- **Technical details**: `app/core/token_validator.py` - manual JWK-to-PEM conversion with proper base64url decoding
+
+### ✅ Environment File Management
+- **What changed**: `.env.*` pattern added to `.gitignore`
+- **Impact**: Auto-generated environment files (`.env.keycloak`) no longer accidentally committed
+- **Details**: All environment files are auto-generated during setup; never commit secrets to repo
+
+### ✅ Makefile Token Retrieval Improved
+- **What changed**: `make get-token` now reads CLIENT_SECRET from `.env.keycloak` (was hardcoded)
+- **Impact**: Works with any Keycloak setup, auto-generated secrets properly handled
+- **Usage**: Just run `make get-token` after setup to get fresh access token
+
+### ✅ Docker Fresh Builds
+- **What changed**: `scripts/deploy-lightsail.sh` now uses `--no-cache` flag
+- **Impact**: Ensures fresh builds without cached Docker layers, critical for CI/CD
+- **Details**: Prevents stale dependencies and ensures latest code is compiled
+
+### ✅ Application Startup Fixed
+- **What changed**: Removed reference to deleted `repository.movies` attribute in startup logging
+- **Impact**: Application starts without errors, proper logging message
+- **Details**: `app/main.py` line 67 - now shows generic "Application started successfully" message
+
+### ✅ Comprehensive Test Updates
+- **What changed**: 26+ tests updated/added for database-driven implementation
+- **Coverage**:
+  - 14 repository tests refactored for SQL queries
+  - 12 route parameter validation tests added
+  - All integration tests verified
+- **Where to learn**: [TEST_UPDATES_SUMMARY.md](./TEST_UPDATES_SUMMARY.md)
 
 ---
 

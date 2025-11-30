@@ -567,10 +567,20 @@ class TestSearchMovies:
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             mock_conn = MagicMock()
-            mock_cursor = MagicMock()
-            mock_cursor.fetchall.return_value = sample_movies
-            mock_cursor.__enter__.return_value = mock_cursor
-            mock_conn.cursor.return_value = mock_cursor
+            
+            # Create two mock cursors for count query and data query
+            mock_cursor_count = MagicMock()
+            mock_cursor_count.fetchone.return_value = {"total": 2}
+            mock_cursor_count.__enter__.return_value = mock_cursor_count
+            mock_cursor_count.__exit__.return_value = None
+            
+            mock_cursor_data = MagicMock()
+            mock_cursor_data.fetchall.return_value = sample_movies[:2]
+            mock_cursor_data.__enter__.return_value = mock_cursor_data
+            mock_cursor_data.__exit__.return_value = None
+            
+            # Return different cursors for each call
+            mock_conn.cursor.side_effect = [mock_cursor_count, mock_cursor_data]
             mock_pool.get_connection.return_value = mock_conn
             
             repo = MoviesRepository()
@@ -589,10 +599,20 @@ class TestSearchMovies:
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             mock_conn = MagicMock()
-            mock_cursor = MagicMock()
-            mock_cursor.fetchall.return_value = sample_movies
-            mock_cursor.__enter__.return_value = mock_cursor
-            mock_conn.cursor.return_value = mock_cursor
+            
+            # Create two mock cursors for count query and data query
+            mock_cursor_count = MagicMock()
+            mock_cursor_count.fetchone.return_value = {"total": 2}
+            mock_cursor_count.__enter__.return_value = mock_cursor_count
+            mock_cursor_count.__exit__.return_value = None
+            
+            mock_cursor_data = MagicMock()
+            mock_cursor_data.fetchall.return_value = sample_movies
+            mock_cursor_data.__enter__.return_value = mock_cursor_data
+            mock_cursor_data.__exit__.return_value = None
+            
+            # Return different cursors for each call
+            mock_conn.cursor.side_effect = [mock_cursor_count, mock_cursor_data]
             mock_pool.get_connection.return_value = mock_conn
             
             repo = MoviesRepository()
@@ -605,10 +625,20 @@ class TestSearchMovies:
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             mock_conn = MagicMock()
-            mock_cursor = MagicMock()
-            mock_cursor.fetchall.return_value = []
-            mock_cursor.__enter__.return_value = mock_cursor
-            mock_conn.cursor.return_value = mock_cursor
+            
+            # Create two mock cursors for count query and data query
+            mock_cursor_count = MagicMock()
+            mock_cursor_count.fetchone.return_value = {"total": 0}
+            mock_cursor_count.__enter__.return_value = mock_cursor_count
+            mock_cursor_count.__exit__.return_value = None
+            
+            mock_cursor_data = MagicMock()
+            mock_cursor_data.fetchall.return_value = []
+            mock_cursor_data.__enter__.return_value = mock_cursor_data
+            mock_cursor_data.__exit__.return_value = None
+            
+            # Return different cursors for each call
+            mock_conn.cursor.side_effect = [mock_cursor_count, mock_cursor_data]
             mock_pool.get_connection.return_value = mock_conn
             
             repo = MoviesRepository()
