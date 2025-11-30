@@ -101,14 +101,28 @@ After researching options, I selected **FastAPI** over Flask because:
 
 **Reference**: https://fastapi.tiangolo.com/tutorial/bigger-applications/
 
-### 4. Security: OAuth2 with Keycloak
+### 4. Security: OAuth2 with JWT Bearer Tokens
 
-Rather than implementing basic API keys, I integrated **Keycloak** (open-source identity and access management) to provide:
-- **Production-grade security**: OAuth2 compliance with industry standards
+This API implements **OAuth2 Bearer Token authentication** using JWT (JSON Web Tokens) for secure access. The authentication provider varies by environment:
+
+**Environment-Specific Providers:**
+- **Local Development**: Keycloak (open-source identity and access management)
+  - Runs in Docker container via `docker-compose.yml`
+  - Provides centralized identity management with zero-trust architecture
+  - Useful for testing OAuth2 workflows locally
+  
+- **Production (AWS LightSail)**: AWS Cognito (AWS managed identity service)
+  - Fully managed authentication without operational overhead
+  - Seamless integration with AWS infrastructure
+  - Provides industry-grade security and compliance
+
+**Security Features (Environment-Agnostic):**
 - **Bearer token authentication**: Standard JWT-based token validation
-- **Centralized identity management**: Reusable for future microservices
-- **Extensibility**: Support for LDAP, SAML, and social login integration
-- **Zero-trust architecture**: Token signature validation from JWKS endpoint
+- **Production-grade security**: OAuth2 compliance with industry standards
+- **Token signature validation**: JWKS endpoint for key verification
+- **Zero-trust architecture**: Every request requires valid JWT signature
+- **Extensibility**: Support for multiple identity providers and future microservices
+- **RS256 cryptography**: RSA Signature with SHA-256 (asymmetric, industry standard)
 
 ### 5. Test Pyramid
 
