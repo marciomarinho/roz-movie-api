@@ -774,7 +774,52 @@ async def list_movies(
 
 ### Getting an Access Token
 
-#### Option 1: User Login (Password Grant)
+#### Quick Method (Recommended) - Using Makefile
+
+For local development, the easiest way is to use the Makefile target:
+
+```bash
+make get-token
+```
+
+This will:
+1. ✓ Automatically fetch a bearer token from Keycloak
+2. ✓ Display the token in your terminal
+3. ✓ Show example curl commands using the token
+4. ✓ Allow you to export and reuse the token
+
+**Example Output:**
+```
+Getting bearer token from Keycloak...
+
+✓ Bearer Token:
+
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQ1In0.eyJzdWIiOiI4ZjdjM2U5YS0yYjFkLTRmOGUtOWMzYSI...
+
+Use it in API requests:
+  curl -H "Authorization: Bearer eyJhbGc..." http://localhost:8000/api/movies
+
+Or export it for repeated use:
+  export TOKEN=eyJhbGc...
+```
+
+**Then use the exported token:**
+```bash
+# Use the exported token in requests
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/movies
+
+# Or chain commands
+movies=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/movies)
+echo $movies | jq '.items[0]'
+```
+
+---
+
+#### Manual Method - Using curl
+
+If you prefer manual token retrieval:
+
+##### Option 1: User Login (Password Grant)
 
 ```bash
 TOKEN=$(curl -X POST "http://localhost:8080/realms/movie-realm/protocol/openid-connect/token" \
@@ -789,7 +834,7 @@ TOKEN=$(curl -X POST "http://localhost:8080/realms/movie-realm/protocol/openid-c
 echo $TOKEN
 ```
 
-#### Option 2: Service Account (Client Credentials) ⭐ Recommended
+##### Option 2: Service Account (Client Credentials) ⭐ Recommended
 
 ```bash
 TOKEN=$(curl -X POST "http://localhost:8080/realms/movie-realm/protocol/openid-connect/token" \

@@ -1,4 +1,4 @@
-.PHONY: help setup dev-setup test-setup prod-like install install-venv clean format lint test test-unit test-integration coverage docker-up docker-down docker-restart docker-logs docker-status docker-rebuild db-migrate db-downgrade db-revision run run-dev freeze check-python check-docker info keycloak-setup keycloak-verify keycloak-test-auth
+.PHONY: help setup dev-setup test-setup prod-like install install-venv clean format lint test test-unit test-integration coverage docker-up docker-down docker-restart docker-logs docker-status docker-rebuild db-migrate db-downgrade db-revision run run-dev freeze check-python check-docker info keycloak-setup keycloak-verify keycloak-test-auth get-token
 
 # Variables
 PYTHON := python
@@ -61,6 +61,7 @@ help:
 	@echo "  make keycloak-setup     Run Keycloak setup script"
 	@echo "  make keycloak-verify    Verify Keycloak configuration"
 	@echo "  make keycloak-test-auth Test authentication flows"
+	@echo "  make get-token          Get bearer token for API testing (localhost)"
 	@echo ""
 	@echo "$(GREEN)Utilities:$(NC)"
 	@echo "  make info               Display environment and version info"
@@ -352,6 +353,45 @@ keycloak-verify: check-python docker-status
 keycloak-test-auth: check-python docker-status
 	@echo "$(BLUE)Testing authentication flows...$(NC)"
 	@$(PYTHON) scripts/test-auth-flows.py
+
+get-token: check-python docker-status
+	@echo "$(BLUE)Getting bearer token from Keycloak...$(NC)"
+	@echo ""
+	@if ! docker ps --format '{{.Names}}' | grep -q keycloak; then \
+		echo "$(RED)✗ Keycloak container is not running$(NC)"; \
+		echo ""; \
+		echo "$(YELLOW)Please start the environment first:$(NC)"; \
+		echo "  make setup        (full setup with all services)"; \
+		echo "  make dev-setup    (dev environment with db + keycloak)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ Keycloak is running$(NC)"
+	@echo ""
+	@TOKEN=$$(curl -s -X POST "http://localhost:8080/realms/movie-realm/protocol/openid-connect/token" \
+		-H "Content-Type: application/x-www-form-urlencoded" \
+		-d "client_id=movie-api-client" \
+		-d "client_secret=movie-api-secret" \
+		-d "grant_type=client_credentials" 2>/dev/null | jq -r '.access_token' 2>/dev/null) && \
+	if [ -z "$$TOKEN" ] || [ "$$TOKEN" = "null" ]; then \
+		echo "$(RED)✗ Failed to get token from Keycloak$(NC)"; \
+		echo ""; \
+		echo "$(YELLOW)Possible issues:$(NC)"; \
+		echo "  1. Keycloak not fully initialized yet (wait 10-15 seconds)"; \
+		echo "  2. Try again: make get-token"; \
+		echo "  3. Check Keycloak logs: docker-compose logs keycloak"; \
+		echo "  4. Verify Keycloak is running: make docker-status"; \
+		exit 1; \
+	else \
+		echo "$(GREEN)✓ Bearer Token:$(NC)"; \
+		echo ""; \
+		echo "$$TOKEN"; \
+		echo ""; \
+		echo "$(YELLOW)Use it in API requests:$(NC)"; \
+		echo "  curl -H \"Authorization: Bearer $$TOKEN\" http://localhost:8000/api/movies"; \
+		echo ""; \
+		echo "$(YELLOW)Or export it for repeated use:$(NC)"; \
+		echo "  export TOKEN=$$TOKEN"; \
+	fi
 
 # Utility Commands
 info:
