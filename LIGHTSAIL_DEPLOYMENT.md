@@ -195,7 +195,7 @@ unset PGPASSWORD
 
 ### 7. Configure Nginx
 
-Create `/etc/nginx/conf.d/movie-api.conf`:
+Create `/etc/nginx/conf.d/movie-api.conf` with routes for both the API and OAuth2 token endpoint:
 
 ```bash
 sudo tee /etc/nginx/conf.d/movie-api.conf > /dev/null << 'EOF'
@@ -203,6 +203,7 @@ server {
     listen 80;
     server_name _;
 
+    # API endpoints - forward to FastAPI on port 8000
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
@@ -210,10 +211,21 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        # For WebSocket support (if needed)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # OAuth2 token endpoint - forward to AWS Cognito
+    location /oauth2/token {
+        proxy_pass https://us-east-1vok1rtjtk.auth.us-east-1.amazoncognito.com/oauth2/token;
+        proxy_ssl_verify off;
+        proxy_set_header Host us-east-1vok1rtjtk.auth.us-east-1.amazoncognito.com;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Content-Type "application/x-www-form-urlencoded";
         
         # Timeouts
         proxy_connect_timeout 60s;
@@ -225,6 +237,38 @@ EOF
 
 sudo systemctl restart nginx
 ```
+
+#### Unified API Gateway Pattern
+
+This Nginx configuration implements a **unified API gateway pattern** where users interact with a single entry point (`http://<lightsail-ip>`):
+
+**Before (Direct Cognito):**
+```bash
+# Get token directly from Cognito
+curl -X POST https://us-east-1vok1rtjtk.auth.us-east-1.amazoncognito.com/oauth2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=382pmd9r8aohhnn5fjlius6vra&client_secret=..."
+
+# Use token with API
+curl -H "Authorization: Bearer $TOKEN" https://api.example.com/movies
+```
+
+**After (Unified Endpoint):**
+```bash
+# Get token from unified endpoint
+curl -X POST http://<lightsail-ip>/oauth2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=382pmd9r8aohhnn5fjlius6vra&client_secret=..."
+
+# Use token with same API endpoint
+curl -H "Authorization: Bearer $TOKEN" http://<lightsail-ip>/api/movies
+```
+
+**Benefits:**
+- ✅ **Single entry point** - Users don't need to know Cognito URL
+- ✅ **Better UX** - Consistent domain for all operations
+- ✅ **Easy migration** - Can swap backends without client changes
+- ✅ **Security** - Cognito endpoint hidden behind LightSail IP
 
 ### 8. Build Docker Image
 

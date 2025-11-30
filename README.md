@@ -1549,9 +1549,11 @@ For a lightweight, cost-effective production deployment, we deployed the Movie A
 
 **Nginx Reverse Proxy**:
 - Listens on port 80 for external traffic
-- Forwards all requests to FastAPI container on port 8000
-- Provides HTTP interface for the API
+- Routes `/` to FastAPI container on port 8000 (API endpoints)
+- Routes `/oauth2/token` to AWS Cognito (unified authentication endpoint)
+- Provides single entry point for all API operations
 - Handles connection timeouts and proxying
+- Implements **API Gateway pattern** for simplified client integration
 
 **Docker Container** (Application):
 - FastAPI application running in Docker
