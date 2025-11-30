@@ -229,6 +229,7 @@ ifdef OS
 else
 	@$(VENV)/bin/python -m pytest tests/unit -v --tb=short
 endif
+
 test-integration: check-python docker-status
 	@echo "$(BLUE)Running integration tests...$(NC)"
 ifdef OS

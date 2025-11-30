@@ -246,12 +246,18 @@ class TestMovieAPIEdgeCases:
         assert len(data["items"]) == 0
 
     def test_large_page_size(self, authenticated_client: TestClient):
-        """Test that page size is clamped to maximum."""
+        """Test that page size exceeding max is rejected with validation error."""
+        # Request page_size > 100 (the maximum allowed)
         response = authenticated_client.get("/api/movies?page_size=500")
         
+        # Should return 422 Unprocessable Entity (validation error)
+        assert response.status_code == 422
+        
+        # Verify that a valid large page_size (at max) works
+        response = authenticated_client.get("/api/movies?page_size=100")
+        assert response.status_code == 200
         data = response.json()
-        # Should be clamped to 100
-        assert data["page_size"] <= 100
+        assert data["page_size"] == 100
 
     def test_negative_page_returns_validation_error(self, authenticated_client: TestClient):
         """Test that negative page number returns validation error."""
