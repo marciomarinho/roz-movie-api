@@ -1533,6 +1533,116 @@ Logs can be aggregated and analyzed for:
 
 ## Production Architecture
 
+### Lightsail Architecture
+
+For a lightweight, cost-effective production deployment, we deployed the Movie API to AWS LightSail with the following architecture:
+
+![RoZetta LightSail Architecture](RoZetta_LightSail_Architecture.png)
+
+#### Components
+
+**AWS LightSail Instance** (Compute):
+- Amazon Linux 2023 instance running Docker
+- Nginx reverse proxy on port 80
+- FastAPI application container on port 8000 (internal)
+- Automated deployment via shell script
+
+**Nginx Reverse Proxy**:
+- Listens on port 80 for external traffic
+- Forwards all requests to FastAPI container on port 8000
+- Provides HTTP interface for the API
+- Handles connection timeouts and proxying
+
+**Docker Container** (Application):
+- FastAPI application running in Docker
+- Self-contained with all dependencies
+- Connects to external RDS and Cognito
+- Auto-restarts on failure
+
+**AWS Cognito** (Authentication):
+- Centralized OAuth2 authentication service
+- JWT token validation for API endpoints
+- Manages user identity and access control
+
+**AWS RDS PostgreSQL** (Data):
+- Managed PostgreSQL database (17.6)
+- External to LightSail instance
+- Secure communication via security group rules
+- Automated backups and maintenance
+
+#### Deployment Process
+
+The deployment is fully automated via `scripts/deploy-lightsail.sh` which:
+
+1. **Validates environment** - Checks all required AWS credentials and configuration
+2. **Installs dependencies** - Auto-installs Docker, Git, PostgreSQL client, Nginx
+3. **Clones repository** - Downloads application code from GitHub
+4. **Creates database** - Sets up PostgreSQL database using `psql` CLI
+5. **Configures Nginx** - Sets up reverse proxy rules (port 80 → 8000)
+6. **Builds Docker image** - Creates optimized application container
+7. **Runs migrations** - Executes Alembic database migrations
+8. **Loads data** - Populates initial movie dataset from CSV
+9. **Starts application** - Launches FastAPI container on port 8000
+10. **Verifies health** - Confirms API is responding to requests
+
+#### One-Command Deployment
+
+```bash
+# Set environment variables
+export DB_HOST=database-1.cypq86uaqfw3.us-east-1.rds.amazonaws.com
+export DB_PORT=5432
+export DB_NAME=movie_api_db
+export DB_USER=postgres
+export DB_PASSWORD=<your-password>
+export COGNITO_USER_POOL_ID=us-east-1_voK1rTJtK
+export COGNITO_REGION=us-east-1
+export AUTH_PROVIDER=cognito
+export AUTH_ENABLED=true
+
+# Deploy
+bash <(curl -fsSL https://raw.githubusercontent.com/marciomarinho/roz-movie-api/main/scripts/deploy-lightsail.sh)
+```
+
+#### Key Features
+
+- **Cost-Effective**: LightSail is significantly cheaper than ECS/Fargate for simple workloads
+- **Simple Operations**: Single instance, no container orchestration complexity
+- **Quick Deployment**: Can go from zero to production in minutes
+- **Manual Control**: Full SSH access for debugging and maintenance
+- **Scalability Path**: Can be upgraded to ECS if load increases
+- **Complete Automation**: One-command deployment with all setup handled automatically
+
+#### Trade-offs vs. Enterprise Architecture
+
+| Aspect | Lightsail | Enterprise (ECS) |
+|--------|-----------|-----------------|
+| **Availability** | Single AZ | Multi-AZ |
+| **Auto-scaling** | Manual | Automatic |
+| **Load Balancing** | Built-in ALB not used | Application Load Balancer |
+| **Complexity** | Minimal | High |
+| **Cost** | Low | Medium-High |
+| **Deployment Speed** | Minutes | Hours |
+| **Learning Curve** | Gentle | Steep |
+| **Suitable For** | Small teams, startups, demos | Enterprise, high traffic |
+
+#### Cleanup
+
+Complete removal of all resources:
+
+```bash
+./scripts/cleanup-lightsail.sh
+```
+
+This removes:
+- Docker containers and images
+- Nginx configuration
+- Installed packages (Docker, Git, PostgreSQL client, Nginx)
+- RDS database
+- Local configuration files
+- Repository directory
+
+---
+
 ### Enterprise-Grade ECS Architecture
 
 If designed from scratch with unlimited resources and freedom to choose the architecture, the production-ready solution would follow an enterprise-grade AWS ECS architecture:
