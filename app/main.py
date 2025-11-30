@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
         # Create repository (uses the initialized pool)
         repository = MoviesRepository()
         movies_service = MoviesService(repository)
-        logger.info(f"Application started with {len(repository.movies)} movies loaded")
+        logger.info("Application started successfully - ready to serve movie data")
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         raise
