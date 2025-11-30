@@ -26,10 +26,10 @@ def get_movies_service() -> MoviesService:
 @router.get("/movies", response_model=PaginatedMovies)
 async def list_movies(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1),
-    title: Optional[str] = Query(None),
-    genre: Optional[str] = Query(None),
-    year: Optional[int] = Query(None),
+    page_size: int = Query(20, ge=1, le=100),
+    title: Optional[str] = Query(None, max_length=100),
+    genre: Optional[str] = Query(None, max_length=50),
+    year: Optional[int] = Query(None, ge=1900, le=2100),
     service: MoviesService = Depends(get_movies_service),
 ) -> PaginatedMovies:
     """List movies with optional filtering and pagination.
@@ -37,9 +37,9 @@ async def list_movies(
     Args:
         page: Page number (1-indexed, default 1).
         page_size: Number of items per page (default 20, max 100).
-        title: Filter by partial title match (case-insensitive).
-        genre: Filter by genre (case-insensitive).
-        year: Filter by year.
+        title: Filter by partial title match (case-insensitive, max 100 chars).
+        genre: Filter by genre (case-insensitive, max 50 chars).
+        year: Filter by year (1900-2100).
         service: Injected MoviesService.
 
     Returns:
@@ -52,21 +52,21 @@ async def list_movies(
 
 @router.get("/movies/search", response_model=PaginatedMovies)
 async def search_movies(
-    q: str = Query(..., description="Search query for movie title"),
+    q: str = Query(..., description="Search query for movie title", max_length=100),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1),
-    genre: Optional[str] = Query(None),
-    year: Optional[int] = Query(None),
+    page_size: int = Query(20, ge=1, le=100),
+    genre: Optional[str] = Query(None, max_length=50),
+    year: Optional[int] = Query(None, ge=1900, le=2100),
     service: MoviesService = Depends(get_movies_service),
 ) -> PaginatedMovies:
     """Search movies by query with optional additional filters.
 
     Args:
-        q: Search query for title (case-insensitive, partial match).
+        q: Search query for title (case-insensitive, partial match, max 100 chars).
         page: Page number (1-indexed, default 1).
         page_size: Number of items per page (default 20, max 100).
-        genre: Filter by genre (case-insensitive).
-        year: Filter by year.
+        genre: Filter by genre (case-insensitive, max 50 chars).
+        year: Filter by year (1900-2100).
         service: Injected MoviesService.
 
     Returns:

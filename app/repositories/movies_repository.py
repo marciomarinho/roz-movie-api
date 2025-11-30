@@ -16,6 +16,9 @@ class MoviesRepository:
     
     Uses a shared connection pool managed by DatabasePool for efficient
     resource utilization across all repositories.
+    
+    All filtering and pagination is delegated to PostgreSQL to minimize
+    memory usage and network transfer.
     """
 
     def __init__(self) -> None:
@@ -31,49 +34,11 @@ class MoviesRepository:
             raise RuntimeError(
                 "DatabasePool not initialized. Call DatabasePool.initialize() first."
             )
-        
-        self.movies: List[Movie] = []
-        self.movies_dict: dict[int, Movie] = {}
-
-        self._load_movies()
-
-    def _load_movies(self) -> None:
-        """Load all movies from PostgreSQL database.
-
-        Gets a connection from the shared pool and fetches all movies 
-        from the movies table.
-        """
-        conn = None
-        try:
-            # Get connection from shared pool
-            conn = DatabasePool.get_connection()
-            
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT movie_id, title, year, genres FROM movies ORDER BY movie_id")
-                rows = cur.fetchall()
-
-                for row in rows:
-                    movie = Movie(
-                        movie_id=row["movie_id"],
-                        title=row["title"],
-                        year=row["year"],
-                        genres=list(row["genres"]) if row["genres"] else [],
-                    )
-
-                    self.movies.append(movie)
-                    self.movies_dict[row["movie_id"]] = movie
-
-            logger.info(f"Loaded {len(self.movies)} movies from PostgreSQL")
-        except psycopg2.Error as e:
-            logger.error(f"Error loading movies from PostgreSQL: {e}")
-            raise
-        finally:
-            # Return connection to shared pool
-            if conn:
-                DatabasePool.return_connection(conn)
 
     def get_movie_by_id(self, movie_id: int) -> Optional[Movie]:
         """Get a movie by its ID.
+        
+        Uses direct primary key lookup for O(1) performance.
 
         Args:
             movie_id: The movie ID to retrieve.
@@ -81,7 +46,32 @@ class MoviesRepository:
         Returns:
             Optional[Movie]: The movie if found, None otherwise.
         """
-        return self.movies_dict.get(movie_id)
+        conn = None
+        try:
+            conn = DatabasePool.get_connection()
+            
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT movie_id, title, year, genres FROM movies WHERE movie_id = %s",
+                    (movie_id,)
+                )
+                row = cur.fetchone()
+                
+                if not row:
+                    return None
+                
+                return Movie(
+                    movie_id=row["movie_id"],
+                    title=row["title"],
+                    year=row["year"],
+                    genres=list(row["genres"]) if row["genres"] else [],
+                )
+        except psycopg2.Error as e:
+            logger.error(f"Error fetching movie {movie_id}: {e}")
+            raise
+        finally:
+            if conn:
+                DatabasePool.return_connection(conn)
 
     def list_movies(
         self,
@@ -92,6 +82,9 @@ class MoviesRepository:
         year: Optional[int] = None,
     ) -> Tuple[List[Movie], int]:
         """List movies with optional filtering and pagination.
+        
+        All filtering and pagination is performed by PostgreSQL using
+        prepared statements and indexes for optimal performance.
 
         Args:
             page: Page number (1-indexed).
@@ -103,15 +96,65 @@ class MoviesRepository:
         Returns:
             Tuple[List[Movie], int]: Filtered movies for the page and total count.
         """
-        filtered = self._filter_movies(title=title, genre=genre, year=year)
-        total_items = len(filtered)
-
-        # Calculate pagination
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-
-        items = filtered[start_idx:end_idx]
-        return items, total_items
+        conn = None
+        try:
+            conn = DatabasePool.get_connection()
+            
+            # Build WHERE clause dynamically
+            where_clauses = []
+            params = []
+            
+            if title:
+                where_clauses.append("title ILIKE %s")
+                params.append(f"%{title}%")
+            
+            if genre:
+                where_clauses.append("%s = ANY(genres)")
+                params.append(genre)
+            
+            if year is not None:
+                where_clauses.append("year = %s")
+                params.append(year)
+            
+            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+            
+            # Get total count with filters
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                count_query = f"SELECT COUNT(*) as total FROM movies WHERE {where_clause}"
+                cur.execute(count_query, params)
+                total_items = cur.fetchone()["total"]
+            
+            # Get paginated results with filters
+            offset = (page - 1) * page_size
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                query = f"""
+                    SELECT movie_id, title, year, genres 
+                    FROM movies 
+                    WHERE {where_clause}
+                    ORDER BY movie_id
+                    LIMIT %s OFFSET %s
+                """
+                params.extend([page_size, offset])
+                cur.execute(query, params)
+                rows = cur.fetchall()
+                
+                movies = [
+                    Movie(
+                        movie_id=row["movie_id"],
+                        title=row["title"],
+                        year=row["year"],
+                        genres=list(row["genres"]) if row["genres"] else [],
+                    )
+                    for row in rows
+                ]
+                
+                return movies, total_items
+        except psycopg2.Error as e:
+            logger.error(f"Error listing movies: {e}")
+            raise
+        finally:
+            if conn:
+                DatabasePool.return_connection(conn)
 
     def search_movies(
         self,
@@ -122,6 +165,9 @@ class MoviesRepository:
         year: Optional[int] = None,
     ) -> Tuple[List[Movie], int]:
         """Search movies by query with optional additional filters.
+        
+        Uses ILIKE for case-insensitive full-text search on title.
+        All filtering and pagination delegated to PostgreSQL.
 
         Args:
             query: Search query for title (case-insensitive, partial match).
@@ -137,38 +183,4 @@ class MoviesRepository:
             page=page, page_size=page_size, title=query, genre=genre, year=year
         )
 
-    def _filter_movies(
-        self,
-        title: Optional[str] = None,
-        genre: Optional[str] = None,
-        year: Optional[int] = None,
-    ) -> List[Movie]:
-        """Filter movies by optional criteria.
-
-        Args:
-            title: Partial title match (case-insensitive).
-            genre: Genre match (case-insensitive).
-            year: Year match.
-
-        Returns:
-            List[Movie]: Filtered list of movies.
-        """
-        result = self.movies
-
-        if title:
-            title_lower = title.lower()
-            result = [m for m in result if title_lower in m.title.lower()]
-
-        if genre:
-            genre_lower = genre.lower()
-            result = [
-                m
-                for m in result
-                if any(genre_lower in g.lower() for g in m.genres)
-            ]
-
-        if year is not None:
-            result = [m for m in result if m.year == year]
-
-        return result
 
