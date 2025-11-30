@@ -367,10 +367,18 @@ get-token: check-python docker-status
 	fi
 	@echo "$(GREEN)✓ Keycloak is running$(NC)"
 	@echo ""
-	@TOKEN=$$(curl -s -X POST "http://localhost:8080/realms/movie-realm/protocol/openid-connect/token" \
+	@if [ ! -f .env.keycloak ]; then \
+		echo "$(RED)✗ .env.keycloak file not found$(NC)"; \
+		echo ""; \
+		echo "$(YELLOW)Please run setup first:$(NC)"; \
+		echo "  make setup"; \
+		exit 1; \
+	fi
+	@CLIENT_SECRET=$$(grep '^CLIENT_SECRET=' .env.keycloak | cut -d'=' -f2) && \
+	TOKEN=$$(curl -s -X POST "http://localhost:8080/realms/movie-realm/protocol/openid-connect/token" \
 		-H "Content-Type: application/x-www-form-urlencoded" \
 		-d "client_id=movie-api-client" \
-		-d "client_secret=movie-api-secret" \
+		-d "client_secret=$$CLIENT_SECRET" \
 		-d "grant_type=client_credentials" 2>/dev/null | jq -r '.access_token' 2>/dev/null) && \
 	if [ -z "$$TOKEN" ] || [ "$$TOKEN" = "null" ]; then \
 		echo "$(RED)✗ Failed to get token from Keycloak$(NC)"; \
