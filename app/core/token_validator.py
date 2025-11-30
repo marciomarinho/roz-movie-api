@@ -60,16 +60,50 @@ class KeycloakTokenValidator(TokenValidator):
             with urlopen(jwks_url, timeout=10) as response:
                 jwks = json.load(response)
 
-            # Extract the first key (assumes single key)
+            # Extract the first RSA signing key
             if not jwks.get("keys"):
                 raise ValueError("No keys found in Keycloak JWKS response")
 
-            key_data = jwks["keys"][0]
+            # Find signing key
+            key_data = None
+            for key in jwks["keys"]:
+                if key.get("use") == "sig" and key.get("kty") == "RSA":
+                    key_data = key
+                    break
+            
+            # Fallback to first key if no signing key found
+            if key_data is None:
+                logger.warning("No explicit signing key found, using first key")
+                key_data = jwks["keys"][0]
+            
             # Convert JWK to PEM format
-            from jose.backends.rsa_backend import RSAKey
-
-            rsa_key = RSAKey.from_jwk(json.dumps(key_data))
-            self._public_key = rsa_key.to_pem()
+            import base64
+            from cryptography.hazmat.primitives.asymmetric import rsa
+            from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.backends import default_backend
+            
+            # Helper to decode base64url with proper padding
+            def decode_base64url(data):
+                padding = 4 - len(data) % 4
+                if padding != 4:
+                    data += '=' * padding
+                return base64.urlsafe_b64decode(data)
+            
+            # Extract RSA components from JWK
+            n = int.from_bytes(decode_base64url(key_data['n']), 'big')
+            e = int.from_bytes(decode_base64url(key_data['e']), 'big')
+            
+            # Create RSA public key
+            public_key = rsa.RSAPublicNumbers(e, n).public_key(default_backend())
+            
+            # Serialize to PEM format
+            pem = public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            
+            self._public_key = pem.decode('utf-8')
+            logger.debug("Successfully fetched and converted Keycloak public key")
             return self._public_key
 
         except Exception as e:
