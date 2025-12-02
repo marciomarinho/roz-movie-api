@@ -92,7 +92,7 @@ class TestListMoviesRoute:
         assert data["page_size"] == 20
 
     def test_list_movies_custom_page(self, client, mock_service):
- 
+        # Setup mock first
         mock_service.get_movies.return_value = PaginatedMovies(
             items=[],
             page=2,
@@ -101,14 +101,16 @@ class TestListMoviesRoute:
             total_pages=5
         )
         
+        # Call endpoint
         response = client.get("/api/movies?page=2")
         
+        # Assert results
         assert response.status_code == 200
         data = response.json()
         assert data["page"] == 2
 
     def test_list_movies_custom_page_size(self, client, mock_service):
-
+        # Setup mock first
         mock_service.get_movies.return_value = PaginatedMovies(
             items=[],
             page=1,
@@ -117,26 +119,36 @@ class TestListMoviesRoute:
             total_pages=2
         )
         
+        # Call endpoint
         response = client.get("/api/movies?page_size=50")
         
+        # Assert results
         assert response.status_code == 200
         data = response.json()
         assert data["page_size"] == 50
 
     def test_list_movies_with_title_filter(self, client, mock_service):
+        # Call endpoint
         response = client.get("/api/movies?title=Toy")
         
+        # Assert results first
         assert response.status_code == 200
+        
+        # Assert mock call second
         mock_service.get_movies.assert_called()
 
     def test_list_movies_with_genre_filter(self, client, mock_service):
+        # Call endpoint
         response = client.get("/api/movies?genre=Action")
         
+        # Assert result
         assert response.status_code == 200
 
     def test_list_movies_with_year_filter(self, client, mock_service):
+        # Call endpoint
         response = client.get("/api/movies?year=1995")
         
+        # Assert result
         assert response.status_code == 200
 
     def test_list_movies_invalid_page_zero(self, client, mock_service):
@@ -163,9 +175,13 @@ class TestListMoviesRoute:
         assert "page_size" in str(data).lower()
 
     def test_list_movies_page_size_at_max_boundary(self, client, mock_service):
+        # Call endpoint
         response = client.get("/api/movies?page_size=100")
         
+        # Assert result first
         assert response.status_code == 200
+        
+        # Assert mock call second
         mock_service.get_movies.assert_called_once()
         call_args = mock_service.get_movies.call_args
         assert call_args[1]["page_size"] == 100
@@ -201,9 +217,13 @@ class TestListMoviesRoute:
         assert "year" in str(data).lower()
 
     def test_list_movies_year_at_valid_range(self, client, mock_service):
+        # Call endpoint
         response = client.get("/api/movies?year=2000")
         
+        # Assert result first
         assert response.status_code == 200
+        
+        # Assert mock call second
         mock_service.get_movies.assert_called_once()
         call_args = mock_service.get_movies.call_args
         assert call_args[1]["year"] == 2000
@@ -219,6 +239,7 @@ class TestListMoviesRoute:
         assert "total_pages" in data
 
     def test_list_movies_empty_result(self, client, mock_service):
+        # Setup mock first
         mock_service.get_movies.return_value = PaginatedMovies(
             items=[],
             page=1,
@@ -227,8 +248,10 @@ class TestListMoviesRoute:
             total_pages=0
         )
         
+        # Call endpoint
         response = client.get("/api/movies")
         
+        # Assert results
         assert response.status_code == 200
         data = response.json()
         assert len(data["items"]) == 0
@@ -267,9 +290,13 @@ class TestSearchMoviesRoute:
         assert "page_size" in str(data).lower()
 
     def test_search_movies_page_size_at_max_boundary(self, client, mock_service):
+        # Call endpoint
         response = client.get("/api/movies/search?q=Toy&page_size=100")
         
+        # Assert result first
         assert response.status_code == 200
+        
+        # Assert mock call second
         mock_service.search_movies.assert_called_once()
         call_args = mock_service.search_movies.call_args
         assert call_args[1]["page_size"] == 100
@@ -312,6 +339,7 @@ class TestSearchMoviesRoute:
         assert response.status_code == 200
 
     def test_search_movies_no_results(self, client, mock_service):
+        # Setup mock first
         mock_service.search_movies.return_value = PaginatedMovies(
             items=[],
             page=1,
@@ -320,8 +348,10 @@ class TestSearchMoviesRoute:
             total_pages=0
         )
         
+        # Call endpoint
         response = client.get("/api/movies/search?q=NonExistent")
         
+        # Assert results
         assert response.status_code == 200
         data = response.json()
         assert len(data["items"]) == 0
@@ -360,10 +390,13 @@ class TestGetMovieRoute:
         assert "genres" in data
 
     def test_get_movie_by_id_not_found(self, client, mock_service):
+        # Setup mock first
         mock_service.get_movie.return_value = None
         
+        # Call endpoint
         response = client.get("/api/movies/999")
         
+        # Assert results
         assert response.status_code == 404
         data = response.json()
         assert "detail" in data
@@ -386,28 +419,37 @@ class TestGetMovieRoute:
         assert response.status_code == 422
 
     def test_get_movie_with_negative_id(self, client, mock_service):
+        # Setup mock first
         mock_service.get_movie.return_value = None
         
+        # Call endpoint
         response = client.get("/api/movies/-1")
         
-        # Negative IDs are allowed by FastAPI, but service returns None
+        # Assert result (Negative IDs are allowed by FastAPI, but service returns None)
         assert response.status_code == 404
 
     def test_get_movie_with_zero_id(self, client, mock_service):
+        # Setup mock first
         mock_service.get_movie.return_value = None
         
+        # Call endpoint
         response = client.get("/api/movies/0")
         
+        # Assert result
         assert response.status_code == 404
 
     def test_get_movie_with_large_id(self, client, mock_service):
+        # Setup mock first
         mock_service.get_movie.return_value = None
         
+        # Call endpoint
         response = client.get("/api/movies/999999999")
         
+        # Assert result
         assert response.status_code == 404
 
     def test_get_movie_response_includes_all_fields(self, client, mock_service):
+        # Setup mock first
         movie_read = MovieRead(
             movie_id=1,
             title="Test Movie",
@@ -416,8 +458,10 @@ class TestGetMovieRoute:
         )
         mock_service.get_movie.return_value = movie_read
         
+        # Call endpoint
         response = client.get("/api/movies/1")
         
+        # Assert results
         data = response.json()
         assert data["movie_id"] == 1
         assert data["title"] == "Test Movie"
@@ -425,20 +469,26 @@ class TestGetMovieRoute:
         assert data["genres"] == ["Action", "Drama"]
 
     def test_get_movie_with_none_year(self, client, mock_service):
+        # Setup mock first
         movie_read = MovieRead(movie_id=1, title="Unknown Year", year=None)
         mock_service.get_movie.return_value = movie_read
         
+        # Call endpoint
         response = client.get("/api/movies/1")
         
+        # Assert result
         data = response.json()
         assert data["year"] is None
 
     def test_get_movie_with_empty_genres(self, client, mock_service):
+        # Setup mock first
         movie_read = MovieRead(movie_id=1, title="No Genres", genres=[])
         mock_service.get_movie.return_value = movie_read
         
+        # Call endpoint
         response = client.get("/api/movies/1")
         
+        # Assert result
         data = response.json()
         assert data["genres"] == []
 
