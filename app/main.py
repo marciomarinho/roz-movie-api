@@ -1,4 +1,3 @@
-"""Main FastAPI application factory and setup."""
 import logging
 from contextlib import asynccontextmanager
 
@@ -21,14 +20,6 @@ movies_service: MoviesService = None
 
 
 def get_movies_service() -> MoviesService:
-    """Get the global movies service instance.
-
-    Returns:
-        MoviesService: The initialized service.
-
-    Raises:
-        RuntimeError: If service is not initialized.
-    """
     if movies_service is None:
         raise RuntimeError("Movies service not initialized")
     return movies_service
@@ -36,14 +27,6 @@ def get_movies_service() -> MoviesService:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI lifespan context manager for startup/shutdown events.
-
-    Args:
-        app: FastAPI application instance.
-
-    Yields:
-        None
-    """
     # Startup
     global movies_service
     settings = get_settings()
@@ -78,11 +61,6 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    """Create and configure FastAPI application.
-
-    Returns:
-        FastAPI: Configured FastAPI application instance.
-    """
     settings = get_settings()
 
     app = FastAPI(
@@ -117,11 +95,6 @@ app = create_app()
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    """Root endpoint.
-
-    Returns:
-        dict: Welcome message and documentation link.
-    """
     return {
         "message": "Welcome to Movie API",
         "docs": "/docs",

@@ -1,4 +1,3 @@
-"""Authentication and authorization dependencies."""
 import logging
 from typing import Optional
 
@@ -12,14 +11,6 @@ logger = logging.getLogger(__name__)
 async def verify_api_key(
     x_api_key: Optional[str] = Header(None),
 ) -> None:
-    """Verify API key from request header.
-
-    Args:
-        x_api_key: API key from X-API-Key header.
-
-    Raises:
-        HTTPException: 401 if API key is missing or invalid.
-    """
     settings = get_settings()
 
     # If no API key is configured, skip verification
@@ -44,20 +35,8 @@ async def verify_api_key(
 async def verify_bearer_token(
     authorization: Optional[str] = Header(None),
 ) -> dict:
-    """Verify bearer token from Authorization header (Keycloak or Cognito OAuth2).
-
-    Args:
-        authorization: Authorization header value (Bearer <token>).
-
-    Returns:
-        dict: Decoded token claims.
-
-    Raises:
-        HTTPException: 401 if token is missing, invalid, or expired.
-    """
     settings = get_settings()
 
-    # If auth is disabled, skip verification
     if not settings.auth_enabled:
         return {}
 
@@ -69,7 +48,6 @@ async def verify_bearer_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Extract bearer token
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         logger.warning(f"Invalid authorization header format: {authorization[:20]}...")

@@ -1,4 +1,3 @@
-"""Unit tests for authentication dependencies."""
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,11 +7,9 @@ from app.deps.auth import verify_api_key
 
 
 class TestVerifyAPIKey:
-    """Test suite for API key verification."""
 
     @pytest.mark.asyncio
     async def test_verify_api_key_no_key_configured(self):
-        """Test verification when no API key is configured."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = None
@@ -23,7 +20,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_no_key_configured_with_header(self):
-        """Test verification when no API key is configured but header provided."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = None
@@ -34,7 +30,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_empty_string_configured(self):
-        """Test verification when API key is empty string."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = ""
@@ -45,7 +40,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_valid(self):
-        """Test verification with valid API key."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = "valid-key-12345"
@@ -56,7 +50,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_invalid(self):
-        """Test verification with invalid API key."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = "valid-key-12345"
@@ -69,7 +62,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_missing_header(self):
-        """Test verification with missing API key header."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = "required-key"
@@ -82,7 +74,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_case_sensitive(self):
-        """Test that API key verification is case-sensitive."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = "MyKey"
@@ -93,7 +84,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_whitespace_sensitive(self):
-        """Test that whitespace matters in API key verification."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = "my-key"
@@ -103,7 +93,6 @@ class TestVerifyAPIKey:
                 await verify_api_key(x_api_key="my-key ")  # Extra space
     @pytest.mark.asyncio
     async def test_verify_api_key_empty_string_header(self):
-        """Test verification with empty string in header."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = "required-key"
@@ -114,7 +103,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_long_key(self):
-        """Test verification with very long API key."""
         long_key = "x" * 1000
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
@@ -126,7 +114,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_special_characters(self):
-        """Test verification with special characters in key."""
         special_key = "!@#$%^&*()"
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
@@ -137,7 +124,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_logs_warning_on_missing(self, caplog):
-        """Test that warning is logged when API key is missing."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = "required-key"
@@ -148,7 +134,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_production_scenario(self):
-        """Test verification in production-like scenario."""
         production_key = "prod-secret-key-xyz-123-abc"
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
@@ -164,7 +149,6 @@ class TestVerifyAPIKey:
 
     @pytest.mark.asyncio
     async def test_verify_api_key_development_scenario(self):
-        """Test verification in development scenario (no key required)."""
         with patch("app.deps.auth.get_settings") as mock_settings_func:
             mock_settings = MagicMock()
             mock_settings.api_key = None

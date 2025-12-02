@@ -19,12 +19,6 @@ from scripts.init_db import initialize_database
 
 @pytest.fixture(scope="session")
 def postgres_container():
-    """
-    Start a PostgreSQL container for the whole test session using raw Docker commands.
-    Bypasses testcontainers entirely to avoid health check hangs on Windows.
-    Manually checks connection readiness instead.
-    Yields connection details.
-    """
     settings = IntegrationTestSettings()
 
     print("\n" + "=" * 60)
@@ -133,14 +127,6 @@ def postgres_container():
 
 @pytest.fixture(scope="session")
 def test_db_url(postgres_container) -> str:
-    """Database connection URL used by tests.
-    
-    Args:
-        postgres_container: Session-scoped container fixture (ensures it's started).
-        
-    Returns:
-        str: Database connection URL.
-    """
     # We rely on env vars set in postgres_container fixture
     host = os.environ["DB_HOST"]
     port = os.environ["DB_PORT"]
@@ -152,14 +138,6 @@ def test_db_url(postgres_container) -> str:
 
 @pytest.fixture(scope="function")
 def test_settings(postgres_container) -> Settings:
-    """Create Settings with test database connection.
-    
-    Args:
-        postgres_container: Session-scoped container fixture (ensures it's started).
-        
-    Returns:
-        Settings: Configured for test database.
-    """
     host = os.environ.get("DB_HOST")
     port = os.environ.get("DB_PORT")
     db_name = os.environ.get("DB_NAME")
@@ -192,15 +170,6 @@ def test_settings(postgres_container) -> Settings:
 
 @pytest.fixture(scope="function")
 def app(test_settings: Settings):
-    """
-    Create and configure FastAPI application for testing.
-    
-    Args:
-        test_settings: Test database settings.
-        
-    Yields:
-        FastAPI: The configured application.
-    """
     print("\n[*] Starting FastAPI application...")
 
     from app.core import config as config_module
@@ -249,14 +218,6 @@ def app(test_settings: Settings):
 
 @pytest.fixture(scope="function")
 def client(app: FastAPI) -> TestClient:
-    """Create TestClient for the application.
-    
-    Args:
-        app: The FastAPI application.
-        
-    Returns:
-        TestClient: HTTP test client.
-    """
     return TestClient(app)
 
 
@@ -264,14 +225,6 @@ def client(app: FastAPI) -> TestClient:
 
 @pytest.fixture(scope="function")
 def bearer_token() -> str:
-    """Get a bearer token from Keycloak for authenticated requests.
-    
-    Returns:
-        str: Bearer token to use in Authorization header.
-        
-    Raises:
-        Exception: If unable to obtain token from Keycloak.
-    """
     settings = IntegrationTestSettings()
     
     try:
@@ -298,17 +251,6 @@ def bearer_token() -> str:
 
 @pytest.fixture(scope="function")
 def authenticated_client(client: TestClient, bearer_token: str) -> TestClient:
-    """Create a TestClient with bearer token already in headers.
-    
-    This fixture injects the Authorization header with bearer token to all requests.
-    
-    Args:
-        client: The base TestClient.
-        bearer_token: The bearer token from Keycloak.
-        
-    Returns:
-        TestClient: Client with Authorization header set.
-    """
     # Store the original request method
     original_request = client.request
     
@@ -332,14 +274,6 @@ def authenticated_client(client: TestClient, bearer_token: str) -> TestClient:
 
 @pytest.fixture(scope="function")
 def db_connection(test_db_url: str):
-    """Create direct database connection for raw SQL operations.
-    
-    Args:
-        test_db_url: The test database connection URL.
-        
-    Yields:
-        psycopg2 connection object.
-    """
     parsed = urlparse(test_db_url)
     
     conn = psycopg2.connect(
@@ -357,6 +291,5 @@ def db_connection(test_db_url: str):
 
 
 def pytest_configure(config):
-    """Configure pytest - handle Windows asyncio."""
     if os.name == "nt":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())

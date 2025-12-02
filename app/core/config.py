@@ -1,4 +1,3 @@
-"""Application configuration management."""
 import logging
 from functools import lru_cache
 from typing import Optional
@@ -7,7 +6,6 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
 
     # Application
     app_name: str = "Movie API"
@@ -52,9 +50,4 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """Get cached application settings.
-
-    Returns:
-        Settings: Application configuration instance.
-    """
     return Settings()

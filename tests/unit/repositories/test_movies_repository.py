@@ -8,10 +8,8 @@ from app.repositories.movies_repository import MoviesRepository
 
 
 class TestMoviesRepositoryInit:
-    """Test suite for MoviesRepository initialization."""
 
     def test_repository_init_pool_not_initialized(self):
-        """Test that repository raises error when pool not initialized."""
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = False
             
@@ -21,7 +19,6 @@ class TestMoviesRepositoryInit:
             assert "DatabasePool not initialized" in str(exc_info.value)
 
     def test_repository_init_success(self):
-        """Test successful repository initialization without loading data."""
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             
@@ -33,10 +30,8 @@ class TestMoviesRepositoryInit:
 
 
 class TestGetMovieById:
-    """Test suite for get_movie_by_id method."""
 
     def test_get_movie_by_id_found(self):
-        """Test retrieving an existing movie by ID from database."""
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             mock_conn = MagicMock()
@@ -69,7 +64,6 @@ class TestGetMovieById:
             assert "WHERE movie_id = %s" in args[0][0]
 
     def test_get_movie_by_id_not_found(self):
-        """Test retrieving a non-existent movie by ID."""
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             mock_conn = MagicMock()
@@ -87,7 +81,6 @@ class TestGetMovieById:
             mock_cursor.execute.assert_called_once()
 
     def test_get_movie_by_id_with_null_genres(self):
-        """Test get_movie_by_id handles null genres."""
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             mock_conn = MagicMock()
@@ -111,10 +104,8 @@ class TestGetMovieById:
 
 
 class TestListMovies:
-    """Test suite for list_movies method."""
 
     def test_list_movies_no_filters(self):
-        """Test listing movies without filters (database query)."""
         sample_movies = [
             {
                 "movie_id": i,
@@ -155,7 +146,6 @@ class TestListMovies:
             assert "OFFSET" in final_query
 
     def test_list_movies_with_title_filter(self):
-        """Test listing movies with title filter (SQL WHERE clause)."""
         sample_movies = [
             {
                 "movie_id": 1,
@@ -190,7 +180,6 @@ class TestListMovies:
             assert "title ILIKE" in query_with_title or "ILIKE" in query_with_title
 
     def test_list_movies_with_genre_filter(self):
-        """Test listing movies with genre filter (array contains)."""
         sample_movies = [
             {
                 "movie_id": 1,
@@ -224,7 +213,6 @@ class TestListMovies:
             assert "ANY" in query_with_genre
 
     def test_list_movies_with_year_filter(self):
-        """Test listing movies with year filter."""
         sample_movies = [
             {
                 "movie_id": 1,
@@ -258,7 +246,6 @@ class TestListMovies:
             assert "year" in query_with_year.lower()
 
     def test_list_movies_with_combined_filters(self):
-        """Test listing movies with multiple filters."""
         sample_movies = [
             {
                 "movie_id": 1,
@@ -296,7 +283,6 @@ class TestListMovies:
             assert "year" in query.lower()
 
     def test_list_movies_pagination_second_page(self):
-        """Test pagination to second page uses correct OFFSET."""
         sample_movies = [
             {
                 "movie_id": 21,
@@ -340,10 +326,8 @@ class TestListMovies:
 
 
 class TestSearchMovies:
-    """Test suite for search_movies method."""
 
     def test_search_movies_delegates_to_list_movies(self):
-        """Test that search_movies delegates to list_movies with query as title."""
         sample_movies = [
             {
                 "movie_id": 1,
@@ -377,7 +361,6 @@ class TestSearchMovies:
             assert "ILIKE" in query_string or "title" in query_string.lower()
 
     def test_search_movies_with_additional_filters(self):
-        """Test search_movies with query and additional genre/year filters."""
         sample_movies = [
             {
                 "movie_id": 1,
@@ -423,7 +406,6 @@ class TestSearchMovies:
             assert movies[0].movie_id == 6
 
     def test_list_movies_with_title_filter(self):
-        """Test listing movies with title filter."""
         sample_movies = [
             {"movie_id": 1, "title": "Toy Story", "year": 1995, "genres": []},
             {"movie_id": 2, "title": "Toy Soldiers", "year": 1991, "genres": []},
@@ -446,7 +428,6 @@ class TestSearchMovies:
             assert all("Toy" in m.title for m in movies)
 
     def test_list_movies_with_genre_filter(self):
-        """Test listing movies with genre filter."""
         sample_movies = [
             {"movie_id": 1, "title": "Action Movie", "year": 2020, "genres": ["Action", "Thriller"]},
             {"movie_id": 2, "title": "Drama Film", "year": 2020, "genres": ["Drama"]},
@@ -469,7 +450,6 @@ class TestSearchMovies:
             assert all(any("Action" in g for g in m.genres) for m in movies)
 
     def test_list_movies_with_year_filter(self):
-        """Test listing movies with year filter."""
         sample_movies = [
             {"movie_id": 1, "title": "Movie 2020 A", "year": 2020, "genres": []},
             {"movie_id": 2, "title": "Movie 2020 B", "year": 2020, "genres": []},
@@ -492,7 +472,6 @@ class TestSearchMovies:
             assert all(m.year == 2020 for m in movies)
 
     def test_list_movies_combined_filters(self):
-        """Test listing movies with multiple filters combined."""
         sample_movies = [
             {"movie_id": 1, "title": "Action 2020", "year": 2020, "genres": ["Action"]},
             {"movie_id": 2, "title": "Drama 2020", "year": 2020, "genres": ["Drama"]},
@@ -515,7 +494,6 @@ class TestSearchMovies:
             assert movies[0].movie_id == 1
 
     def test_list_movies_empty_result(self):
-        """Test listing movies with no results."""
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             mock_conn = MagicMock()
@@ -532,7 +510,6 @@ class TestSearchMovies:
             assert total == 0
 
     def test_list_movies_page_out_of_range(self):
-        """Test listing movies with page number out of range."""
         sample_movies = [
             {"movie_id": 1, "title": "Movie 1", "year": 2020, "genres": []}
         ]
@@ -554,10 +531,8 @@ class TestSearchMovies:
 
 
 class TestSearchMovies:
-    """Test suite for search_movies method."""
 
     def test_search_movies_basic(self):
-        """Test basic movie search."""
         sample_movies = [
             {"movie_id": 1, "title": "Toy Story", "year": 1995, "genres": []},
             {"movie_id": 2, "title": "Toy Soldiers", "year": 1991, "genres": []},
@@ -590,7 +565,6 @@ class TestSearchMovies:
             assert all("Toy" in m.title for m in movies)
 
     def test_search_movies_case_insensitive(self):
-        """Test that movie search is case-insensitive."""
         sample_movies = [
             {"movie_id": 1, "title": "Toy Story", "year": 1995, "genres": []},
             {"movie_id": 2, "title": "TOY SOLDIERS", "year": 1991, "genres": []},
@@ -621,7 +595,6 @@ class TestSearchMovies:
             assert total == 2
 
     def test_search_movies_no_results(self):
-        """Test search with no results."""
         with patch("app.repositories.movies_repository.DatabasePool") as mock_pool:
             mock_pool.is_initialized.return_value = True
             mock_conn = MagicMock()

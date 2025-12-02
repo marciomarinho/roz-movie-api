@@ -1,4 +1,3 @@
-"""Movies service for business logic."""
 import logging
 from typing import Optional
 
@@ -9,14 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class MoviesService:
-    """Service layer for movies business logic."""
-
     def __init__(self, repository: MoviesRepository) -> None:
-        """Initialize the service with a repository.
-
-        Args:
-            repository: MoviesRepository instance.
-        """
         self.repository = repository
 
     def get_movies(
@@ -27,18 +19,6 @@ class MoviesService:
         genre: Optional[str] = None,
         year: Optional[int] = None,
     ) -> PaginatedMovies:
-        """Get a paginated list of movies with optional filters.
-
-        Args:
-            page: Page number (1-indexed).
-            page_size: Number of items per page (max 100).
-            title: Filter by partial title match (case-insensitive).
-            genre: Filter by genre (case-insensitive).
-            year: Filter by year.
-
-        Returns:
-            PaginatedMovies: Paginated response with movies.
-        """
         # Validate and clamp page_size
         page_size = min(page_size, 100)
         page_size = max(page_size, 1)
@@ -76,18 +56,6 @@ class MoviesService:
         genre: Optional[str] = None,
         year: Optional[int] = None,
     ) -> PaginatedMovies:
-        """Search movies by query with optional additional filters.
-
-        Args:
-            query: Search query for title (case-insensitive, partial match).
-            page: Page number (1-indexed).
-            page_size: Number of items per page (max 100).
-            genre: Additional genre filter (case-insensitive).
-            year: Additional year filter.
-
-        Returns:
-            PaginatedMovies: Search results with pagination.
-        """
         # Validate and clamp page_size
         page_size = min(page_size, 100)
         page_size = max(page_size, 1)
@@ -118,14 +86,6 @@ class MoviesService:
         )
 
     def get_movie(self, movie_id: int) -> Optional[MovieRead]:
-        """Get a single movie by ID.
-
-        Args:
-            movie_id: The movie ID to retrieve.
-
-        Returns:
-            Optional[MovieRead]: The movie if found, None otherwise.
-        """
         movie = self.repository.get_movie_by_id(movie_id)
         if movie:
             return MovieRead(

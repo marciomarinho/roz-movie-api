@@ -6,7 +6,6 @@ from pydantic_settings import BaseSettings
 
 
 class IntegrationTestSettings(BaseSettings):
-    """Settings for integration tests using testcontainers."""
 
     # PostgreSQL Container Configuration
     postgres_image: str = "postgres:15-alpine"
@@ -45,9 +44,7 @@ class IntegrationTestSettings(BaseSettings):
         case_sensitive = False
     
     def __init__(self, **data):
-        """Initialize and read CLIENT_SECRET from .env.keycloak if available."""
         super().__init__(**data)
-        # Try to read CLIENT_SECRET from .env.keycloak if not already set
         if not self.keycloak_client_secret and os.path.exists(".env.keycloak"):
             try:
                 with open(".env.keycloak", "r") as f:
@@ -61,9 +58,4 @@ class IntegrationTestSettings(BaseSettings):
 
 
 def get_integration_test_settings() -> IntegrationTestSettings:
-    """Get integration test settings.
-
-    Returns:
-        IntegrationTestSettings: Loaded settings.
-    """
     return IntegrationTestSettings()

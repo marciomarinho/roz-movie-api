@@ -10,7 +10,6 @@ from app.models.movie import Movie, MovieRead, PaginatedMovies
 
 @pytest.fixture
 def mock_service():
-    """Create a mock service."""
     service = MagicMock()
     
     # Sample data
@@ -49,7 +48,6 @@ def mock_service():
 
 @pytest.fixture
 def app(mock_service):
-    """Create a test FastAPI app with mocked dependencies."""
     app = FastAPI()
     
     # Override dependencies
@@ -79,15 +77,12 @@ def app(mock_service):
 
 @pytest.fixture
 def client(app):
-    """Create a test client."""
     return TestClient(app)
 
 
 class TestListMoviesRoute:
-    """Test suite for GET /api/movies route."""
 
     def test_list_movies_default_pagination(self, client, mock_service):
-        """Test listing movies with default pagination."""
         response = client.get("/api/movies")
         
         assert response.status_code == 200
@@ -97,7 +92,7 @@ class TestListMoviesRoute:
         assert data["page_size"] == 20
 
     def test_list_movies_custom_page(self, client, mock_service):
-        """Test listing movies with custom page number."""
+ 
         mock_service.get_movies.return_value = PaginatedMovies(
             items=[],
             page=2,
@@ -113,7 +108,7 @@ class TestListMoviesRoute:
         assert data["page"] == 2
 
     def test_list_movies_custom_page_size(self, client, mock_service):
-        """Test listing movies with custom page size."""
+
         mock_service.get_movies.return_value = PaginatedMovies(
             items=[],
             page=1,
@@ -129,45 +124,38 @@ class TestListMoviesRoute:
         assert data["page_size"] == 50
 
     def test_list_movies_with_title_filter(self, client, mock_service):
-        """Test listing movies with title filter."""
         response = client.get("/api/movies?title=Toy")
         
         assert response.status_code == 200
         mock_service.get_movies.assert_called()
 
     def test_list_movies_with_genre_filter(self, client, mock_service):
-        """Test listing movies with genre filter."""
         response = client.get("/api/movies?genre=Action")
         
         assert response.status_code == 200
 
     def test_list_movies_with_year_filter(self, client, mock_service):
-        """Test listing movies with year filter."""
         response = client.get("/api/movies?year=1995")
         
         assert response.status_code == 200
 
     def test_list_movies_invalid_page_zero(self, client, mock_service):
-        """Test listing movies with page 0 (should be >= 1)."""
         response = client.get("/api/movies?page=0")
         
         # FastAPI validation should reject page=0
         assert response.status_code == 422
 
     def test_list_movies_invalid_page_negative(self, client, mock_service):
-        """Test listing movies with negative page."""
         response = client.get("/api/movies?page=-1")
         
         assert response.status_code == 422
 
     def test_list_movies_invalid_page_size_zero(self, client, mock_service):
-        """Test listing movies with page size 0."""
         response = client.get("/api/movies?page_size=0")
         
         assert response.status_code == 422
 
     def test_list_movies_invalid_page_size_exceeds_max(self, client, mock_service):
-        """Test listing movies with page_size > 100 (exceeds limit)."""
         response = client.get("/api/movies?page_size=101")
         
         assert response.status_code == 422
@@ -175,7 +163,6 @@ class TestListMoviesRoute:
         assert "page_size" in str(data).lower()
 
     def test_list_movies_page_size_at_max_boundary(self, client, mock_service):
-        """Test listing movies with page_size = 100 (at max limit)."""
         response = client.get("/api/movies?page_size=100")
         
         assert response.status_code == 200
@@ -184,7 +171,6 @@ class TestListMoviesRoute:
         assert call_args[1]["page_size"] == 100
 
     def test_list_movies_title_too_long(self, client, mock_service):
-        """Test listing movies with title parameter exceeding max length."""
         long_title = "x" * 101  # Exceeds 100 char limit
         response = client.get(f"/api/movies?title={long_title}")
         
@@ -193,7 +179,6 @@ class TestListMoviesRoute:
         assert "title" in str(data).lower()
 
     def test_list_movies_genre_too_long(self, client, mock_service):
-        """Test listing movies with genre parameter exceeding max length."""
         long_genre = "x" * 51  # Exceeds 50 char limit
         response = client.get(f"/api/movies?genre={long_genre}")
         
@@ -202,7 +187,6 @@ class TestListMoviesRoute:
         assert "genre" in str(data).lower()
 
     def test_list_movies_year_out_of_range_low(self, client, mock_service):
-        """Test listing movies with year < 1900."""
         response = client.get("/api/movies?year=1899")
         
         assert response.status_code == 422
@@ -210,7 +194,6 @@ class TestListMoviesRoute:
         assert "year" in str(data).lower()
 
     def test_list_movies_year_out_of_range_high(self, client, mock_service):
-        """Test listing movies with year > 2100."""
         response = client.get("/api/movies?year=2101")
         
         assert response.status_code == 422
@@ -218,7 +201,6 @@ class TestListMoviesRoute:
         assert "year" in str(data).lower()
 
     def test_list_movies_year_at_valid_range(self, client, mock_service):
-        """Test listing movies with valid year range (1900-2100)."""
         response = client.get("/api/movies?year=2000")
         
         assert response.status_code == 200
@@ -227,7 +209,6 @@ class TestListMoviesRoute:
         assert call_args[1]["year"] == 2000
 
     def test_list_movies_response_structure(self, client, mock_service):
-        """Test that list movies response has correct structure."""
         response = client.get("/api/movies")
         
         data = response.json()
@@ -238,7 +219,6 @@ class TestListMoviesRoute:
         assert "total_pages" in data
 
     def test_list_movies_empty_result(self, client, mock_service):
-        """Test listing movies with no results."""
         mock_service.get_movies.return_value = PaginatedMovies(
             items=[],
             page=1,
@@ -256,10 +236,8 @@ class TestListMoviesRoute:
 
 
 class TestSearchMoviesRoute:
-    """Test suite for GET /api/movies/search route."""
 
     def test_search_movies_basic(self, client, mock_service):
-        """Test basic movie search."""
         response = client.get("/api/movies/search?q=Toy")
         
         assert response.status_code == 200
@@ -268,14 +246,12 @@ class TestSearchMoviesRoute:
         assert data["total_items"] >= 0
 
     def test_search_movies_required_query(self, client, mock_service):
-        """Test that search query is required."""
         response = client.get("/api/movies/search")
         
         # Query parameter is required
         assert response.status_code == 422
 
     def test_search_movies_query_too_long(self, client, mock_service):
-        """Test search with query parameter exceeding max length."""
         long_query = "x" * 101  # Exceeds 100 char limit
         response = client.get(f"/api/movies/search?q={long_query}")
         
@@ -284,7 +260,6 @@ class TestSearchMoviesRoute:
         assert "q" in str(data).lower()
 
     def test_search_movies_page_size_exceeds_max(self, client, mock_service):
-        """Test search with page_size > 100."""
         response = client.get("/api/movies/search?q=Toy&page_size=101")
         
         assert response.status_code == 422
@@ -292,7 +267,6 @@ class TestSearchMoviesRoute:
         assert "page_size" in str(data).lower()
 
     def test_search_movies_page_size_at_max_boundary(self, client, mock_service):
-        """Test search with page_size = 100."""
         response = client.get("/api/movies/search?q=Toy&page_size=100")
         
         assert response.status_code == 200
@@ -301,7 +275,6 @@ class TestSearchMoviesRoute:
         assert call_args[1]["page_size"] == 100
 
     def test_search_movies_genre_too_long(self, client, mock_service):
-        """Test search with genre parameter exceeding max length."""
         long_genre = "x" * 51  # Exceeds 50 char limit
         response = client.get(f"/api/movies/search?q=Toy&genre={long_genre}")
         
@@ -310,7 +283,6 @@ class TestSearchMoviesRoute:
         assert "genre" in str(data).lower()
 
     def test_search_movies_year_out_of_range(self, client, mock_service):
-        """Test search with year outside valid range."""
         response = client.get("/api/movies/search?q=Toy&year=1899")
         
         assert response.status_code == 422
@@ -318,25 +290,21 @@ class TestSearchMoviesRoute:
         assert "year" in str(data).lower()
 
     def test_search_movies_with_pagination(self, client, mock_service):
-        """Test search with custom pagination."""
         response = client.get("/api/movies/search?q=Toy&page=2&page_size=10")
         
         assert response.status_code == 200
 
     def test_search_movies_with_genre_filter(self, client, mock_service):
-        """Test search with genre filter."""
         response = client.get("/api/movies/search?q=Toy&genre=Animation")
         
         assert response.status_code == 200
 
     def test_search_movies_with_year_filter(self, client, mock_service):
-        """Test search with year filter."""
         response = client.get("/api/movies/search?q=Toy&year=1995")
         
         assert response.status_code == 200
 
     def test_search_movies_combined_filters(self, client, mock_service):
-        """Test search with multiple filters."""
         response = client.get(
             "/api/movies/search?q=Toy&genre=Animation&year=1995&page=1&page_size=20"
         )
@@ -344,7 +312,6 @@ class TestSearchMoviesRoute:
         assert response.status_code == 200
 
     def test_search_movies_no_results(self, client, mock_service):
-        """Test search with no results."""
         mock_service.search_movies.return_value = PaginatedMovies(
             items=[],
             page=1,
@@ -360,19 +327,16 @@ class TestSearchMoviesRoute:
         assert len(data["items"]) == 0
 
     def test_search_movies_case_insensitive(self, client, mock_service):
-        """Test that search is case-insensitive."""
         response = client.get("/api/movies/search?q=TOY")
         
         assert response.status_code == 200
 
     def test_search_movies_special_characters(self, client, mock_service):
-        """Test search with special characters."""
         response = client.get("/api/movies/search?q=Toy%20Story%202")
         
         assert response.status_code == 200
 
     def test_search_movies_response_structure(self, client, mock_service):
-        """Test search response structure."""
         response = client.get("/api/movies/search?q=Toy")
         
         data = response.json()
@@ -384,10 +348,8 @@ class TestSearchMoviesRoute:
 
 
 class TestGetMovieRoute:
-    """Test suite for GET /api/movies/{movie_id} route."""
 
     def test_get_movie_by_id_found(self, client, mock_service):
-        """Test retrieving a movie by ID."""
         response = client.get("/api/movies/1")
         
         assert response.status_code == 200
@@ -398,7 +360,6 @@ class TestGetMovieRoute:
         assert "genres" in data
 
     def test_get_movie_by_id_not_found(self, client, mock_service):
-        """Test retrieving a non-existent movie."""
         mock_service.get_movie.return_value = None
         
         response = client.get("/api/movies/999")
@@ -409,7 +370,6 @@ class TestGetMovieRoute:
         assert "999" in data["detail"]
 
     def test_get_movie_response_structure(self, client, mock_service):
-        """Test that get movie response has correct structure."""
         response = client.get("/api/movies/1")
         
         data = response.json()
@@ -420,14 +380,12 @@ class TestGetMovieRoute:
         assert isinstance(data["genres"], list)
 
     def test_get_movie_with_invalid_id_format(self, client, mock_service):
-        """Test getting movie with invalid ID format."""
         response = client.get("/api/movies/invalid")
         
         # Should return validation error
         assert response.status_code == 422
 
     def test_get_movie_with_negative_id(self, client, mock_service):
-        """Test getting movie with negative ID."""
         mock_service.get_movie.return_value = None
         
         response = client.get("/api/movies/-1")
@@ -436,7 +394,6 @@ class TestGetMovieRoute:
         assert response.status_code == 404
 
     def test_get_movie_with_zero_id(self, client, mock_service):
-        """Test getting movie with zero ID."""
         mock_service.get_movie.return_value = None
         
         response = client.get("/api/movies/0")
@@ -444,7 +401,6 @@ class TestGetMovieRoute:
         assert response.status_code == 404
 
     def test_get_movie_with_large_id(self, client, mock_service):
-        """Test getting movie with very large ID."""
         mock_service.get_movie.return_value = None
         
         response = client.get("/api/movies/999999999")
@@ -452,7 +408,6 @@ class TestGetMovieRoute:
         assert response.status_code == 404
 
     def test_get_movie_response_includes_all_fields(self, client, mock_service):
-        """Test that movie response includes all fields."""
         movie_read = MovieRead(
             movie_id=1,
             title="Test Movie",
@@ -470,7 +425,6 @@ class TestGetMovieRoute:
         assert data["genres"] == ["Action", "Drama"]
 
     def test_get_movie_with_none_year(self, client, mock_service):
-        """Test getting movie with no year."""
         movie_read = MovieRead(movie_id=1, title="Unknown Year", year=None)
         mock_service.get_movie.return_value = movie_read
         
@@ -480,7 +434,6 @@ class TestGetMovieRoute:
         assert data["year"] is None
 
     def test_get_movie_with_empty_genres(self, client, mock_service):
-        """Test getting movie with no genres."""
         movie_read = MovieRead(movie_id=1, title="No Genres", genres=[])
         mock_service.get_movie.return_value = movie_read
         
@@ -491,10 +444,8 @@ class TestGetMovieRoute:
 
 
 class TestMovieRoutesIntegration:
-    """Integration tests for movie routes."""
 
     def test_routes_return_json_content_type(self, client, mock_service):
-        """Test that all routes return JSON content type."""
         responses = [
             client.get("/api/movies"),
             client.get("/api/movies/search?q=test"),
@@ -506,7 +457,6 @@ class TestMovieRoutesIntegration:
                 assert "application/json" in response.headers.get("content-type", "")
 
     def test_multiple_sequential_requests(self, client, mock_service):
-        """Test multiple sequential requests to routes."""
         response1 = client.get("/api/movies")
         response2 = client.get("/api/movies/search?q=test")
         response3 = client.get("/api/movies/1")

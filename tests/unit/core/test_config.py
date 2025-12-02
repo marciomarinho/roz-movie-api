@@ -8,10 +8,8 @@ from app.core.config import Settings, get_settings
 
 
 class TestSettings:
-    """Test suite for Settings class."""
 
     def test_default_settings(self, monkeypatch):
-        """Test that Settings uses default values when env vars not set."""
         # Remove all configuration from environment
         monkeypatch.delenv("APP_NAME", raising=False)
         monkeypatch.delenv("APP_VERSION", raising=False)
@@ -33,7 +31,6 @@ class TestSettings:
         assert settings.log_level == "INFO"
 
     def test_settings_api_key_from_monkeypatch(self, monkeypatch):
-        """Test that api_key can be set from environment."""
         # Remove API_KEY from environment for this test
         monkeypatch.delenv("API_KEY", raising=False)
         # Create fresh settings instance
@@ -44,7 +41,6 @@ class TestSettings:
         assert settings.api_key is None or isinstance(settings.api_key, str)
 
     def test_settings_from_environment(self, monkeypatch):
-        """Test that Settings loads values from environment."""
         monkeypatch.setenv("APP_NAME", "Custom API")
         monkeypatch.setenv("APP_VERSION", "2.0.0")
         monkeypatch.setenv("API_V1_PREFIX", "/v2")
@@ -59,7 +55,6 @@ class TestSettings:
         assert settings.api_key == "secret-key"
 
     def test_settings_db_configuration(self, monkeypatch):
-        """Test database configuration loading."""
         monkeypatch.setenv("DB_HOST", "prod-db.example.com")
         monkeypatch.setenv("DB_PORT", "5433")
         monkeypatch.setenv("DB_NAME", "movies_prod")
@@ -74,7 +69,6 @@ class TestSettings:
         assert settings.db_password == "prod_pass"
 
     def test_settings_case_insensitive(self, monkeypatch):
-        """Test that Settings is case-insensitive for env vars."""
         monkeypatch.setenv("app_name", "lowercase api")
         monkeypatch.setenv("APP_VERSION", "1.5.0")
 
@@ -83,29 +77,24 @@ class TestSettings:
         assert settings.app_version == "1.5.0"
 
     def test_settings_port_type_conversion(self, monkeypatch):
-        """Test that port is converted to int."""
         monkeypatch.setenv("DB_PORT", "9999")
         settings = Settings()
         assert isinstance(settings.db_port, int)
         assert settings.db_port == 9999
 
     def test_settings_empty_api_key(self, monkeypatch):
-        """Test that empty API key is treated as None."""
         monkeypatch.setenv("API_KEY", "")
         settings = Settings()
         assert settings.api_key == ""
 
 
 class TestGetSettings:
-    """Test suite for get_settings function."""
 
     def test_get_settings_returns_settings(self, clear_lru_cache):
-        """Test that get_settings returns a Settings instance."""
         settings = get_settings()
         assert isinstance(settings, Settings)
 
     def test_get_settings_cached(self, clear_lru_cache, monkeypatch):
-        """Test that get_settings caches the result."""
         monkeypatch.setenv("APP_NAME", "First Call")
         first_call = get_settings()
         
@@ -117,7 +106,6 @@ class TestGetSettings:
         assert first_call.app_name == "First Call"
 
     def test_get_settings_multiple_instances_different_envs(self, clear_lru_cache, monkeypatch):
-        """Test that new environment creates new cached instance."""
         monkeypatch.setenv("APP_NAME", "First")
         first = get_settings()
         
@@ -130,7 +118,6 @@ class TestGetSettings:
         assert second.app_name == "Second"
 
     def test_get_settings_production_like_config(self, clear_lru_cache, monkeypatch):
-        """Test get_settings with production-like environment."""
         monkeypatch.setenv("APP_NAME", "MovieDB API")
         monkeypatch.setenv("LOG_LEVEL", "WARNING")
         monkeypatch.setenv("DB_HOST", "db.prod.internal")
@@ -143,7 +130,6 @@ class TestGetSettings:
         assert settings.api_key == "prod-secret-key-xyz"
 
     def test_get_settings_development_config(self, clear_lru_cache, monkeypatch):
-        """Test get_settings with development environment."""
         monkeypatch.setenv("APP_NAME", "Movie API Dev")
         monkeypatch.setenv("LOG_LEVEL", "DEBUG")
         monkeypatch.setenv("DB_HOST", "localhost")

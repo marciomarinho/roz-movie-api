@@ -1,4 +1,3 @@
-"""Token validation for both Keycloak and AWS Cognito."""
 import json
 import logging
 from typing import Any, Optional
@@ -13,40 +12,19 @@ logger = logging.getLogger(__name__)
 
 
 class TokenValidator:
-    """Base token validator interface."""
 
     def verify_token(self, token: str) -> dict[str, Any]:
-        """Verify and decode a token.
-
-        Args:
-            token: JWT token string.
-
-        Returns:
-            dict: Decoded token claims.
-
-        Raises:
-            JWTError: If token is invalid or verification fails.
-        """
         raise NotImplementedError
 
 
 class KeycloakTokenValidator(TokenValidator):
-    """Validator for Keycloak JWT tokens."""
 
     def __init__(self):
-        """Initialize Keycloak validator."""
         self.settings = get_settings()
         self._public_key: Optional[str] = None
 
     def _fetch_public_key(self) -> str:
-        """Fetch Keycloak public key from JWKS endpoint.
 
-        Returns:
-            str: RSA public key in PEM format.
-
-        Raises:
-            Exception: If key fetch fails.
-        """
         if self._public_key:
             return self._public_key
 
@@ -111,17 +89,6 @@ class KeycloakTokenValidator(TokenValidator):
             raise
 
     def verify_token(self, token: str) -> dict[str, Any]:
-        """Verify Keycloak JWT token.
-
-        Args:
-            token: JWT token string.
-
-        Returns:
-            dict: Decoded token claims.
-
-        Raises:
-            JWTError: If token is invalid.
-        """
         try:
             public_key = self._fetch_public_key()
             # Decode without audience validation first, but verify expiration
@@ -160,22 +127,13 @@ class KeycloakTokenValidator(TokenValidator):
 
 
 class CognitoTokenValidator(TokenValidator):
-    """Validator for AWS Cognito JWT tokens."""
 
     def __init__(self):
-        """Initialize Cognito validator."""
         self.settings = get_settings()
         self._jwks: Optional[dict] = None
 
     def _fetch_jwks(self) -> dict:
-        """Fetch Cognito public keys from JWKS endpoint.
 
-        Returns:
-            dict: JWKS data containing public keys.
-
-        Raises:
-            Exception: If JWKS fetch fails.
-        """
         if self._jwks:
             return self._jwks
 
@@ -199,17 +157,6 @@ class CognitoTokenValidator(TokenValidator):
             raise
 
     def verify_token(self, token: str) -> dict[str, Any]:
-        """Verify AWS Cognito JWT token.
-
-        Args:
-            token: JWT token string.
-
-        Returns:
-            dict: Decoded token claims.
-
-        Raises:
-            JWTError: If token is invalid.
-        """
         try:
             # Get header to extract kid (key ID)
             headers = jwt.get_unverified_header(token)
@@ -251,14 +198,6 @@ class CognitoTokenValidator(TokenValidator):
 
 
 def get_token_validator() -> TokenValidator:
-    """Get appropriate token validator based on configuration.
-
-    Returns:
-        TokenValidator: Keycloak or Cognito validator instance.
-
-    Raises:
-        ValueError: If auth provider is not configured properly.
-    """
     settings = get_settings()
 
     if not settings.auth_enabled:

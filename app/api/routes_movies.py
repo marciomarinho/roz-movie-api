@@ -1,4 +1,3 @@
-"""Movie API routes."""
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,14 +10,6 @@ router = APIRouter(prefix="/api", tags=["movies"], dependencies=[Depends(verify_
 
 
 def get_movies_service() -> MoviesService:
-    """Get movies service instance.
-
-    This is a placeholder that will be injected by FastAPI.
-    The actual service is provided in main.py.
-
-    Returns:
-        MoviesService: The service instance.
-    """
     # This will be overridden in main.py
     raise NotImplementedError("Movies service not initialized")
 
@@ -32,19 +23,6 @@ async def list_movies(
     year: Optional[int] = Query(None, ge=1900, le=2100),
     service: MoviesService = Depends(get_movies_service),
 ) -> PaginatedMovies:
-    """List movies with optional filtering and pagination.
-
-    Args:
-        page: Page number (1-indexed, default 1).
-        page_size: Number of items per page (default 20, max 100).
-        title: Filter by partial title match (case-insensitive, max 100 chars).
-        genre: Filter by genre (case-insensitive, max 50 chars).
-        year: Filter by year (1900-2100).
-        service: Injected MoviesService.
-
-    Returns:
-        PaginatedMovies: Paginated list of movies.
-    """
     return service.get_movies(
         page=page, page_size=page_size, title=title, genre=genre, year=year
     )
@@ -59,19 +37,6 @@ async def search_movies(
     year: Optional[int] = Query(None, ge=1900, le=2100),
     service: MoviesService = Depends(get_movies_service),
 ) -> PaginatedMovies:
-    """Search movies by query with optional additional filters.
-
-    Args:
-        q: Search query for title (case-insensitive, partial match, max 100 chars).
-        page: Page number (1-indexed, default 1).
-        page_size: Number of items per page (default 20, max 100).
-        genre: Filter by genre (case-insensitive, max 50 chars).
-        year: Filter by year (1900-2100).
-        service: Injected MoviesService.
-
-    Returns:
-        PaginatedMovies: Search results with pagination.
-    """
     return service.search_movies(query=q, page=page, page_size=page_size, genre=genre, year=year)
 
 
@@ -80,18 +45,6 @@ async def get_movie(
     movie_id: int,
     service: MoviesService = Depends(get_movies_service),
 ) -> MovieRead:
-    """Get a single movie by ID.
-
-    Args:
-        movie_id: The movie ID to retrieve.
-        service: Injected MoviesService.
-
-    Returns:
-        MovieRead: The movie details.
-
-    Raises:
-        HTTPException: 404 if movie not found.
-    """
     movie = service.get_movie(movie_id)
     if not movie:
         raise HTTPException(

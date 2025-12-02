@@ -1,4 +1,3 @@
-"""Keycloak token validation utilities."""
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -14,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class KeycloakTokenValidator:
-    """Validate JWT tokens from Keycloak."""
-
     _instance = None
     _public_key: Optional[str] = None
     _algorithms: list[str] = ["RS256"]
@@ -28,14 +25,6 @@ class KeycloakTokenValidator:
 
     @classmethod
     def get_public_key(cls) -> str:
-        """Fetch and cache Keycloak public key.
-
-        Returns:
-            str: The public key in PEM format.
-
-        Raises:
-            Exception: If unable to fetch the public key.
-        """
         if cls._public_key is None:
             settings = get_settings()
             jwks_url = (
@@ -96,17 +85,6 @@ class KeycloakTokenValidator:
 
     @classmethod
     def verify_token(cls, token: str) -> Dict[str, Any]:
-        """Verify and decode a JWT token from Keycloak.
-
-        Args:
-            token: The JWT token to verify.
-
-        Returns:
-            dict: The decoded token claims.
-
-        Raises:
-            JWTError: If token is invalid or expired.
-        """
         settings = get_settings()
 
         try:
@@ -150,9 +128,4 @@ class KeycloakTokenValidator:
 
 
 def get_keycloak_token_validator() -> KeycloakTokenValidator:
-    """Get singleton instance of KeycloakTokenValidator.
-
-    Returns:
-        KeycloakTokenValidator: The validator instance.
-    """
     return KeycloakTokenValidator()

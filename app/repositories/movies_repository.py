@@ -1,4 +1,3 @@
-"""Movies repository for PostgreSQL data access."""
 import logging
 from typing import List, Optional, Tuple
 
@@ -10,42 +9,15 @@ from app.models.movie import Movie
 
 logger = logging.getLogger(__name__)
 
-
 class MoviesRepository:
-    """Repository for managing movie data from PostgreSQL database.
-    
-    Uses a shared connection pool managed by DatabasePool for efficient
-    resource utilization across all repositories.
-    
-    All filtering and pagination is delegated to PostgreSQL to minimize
-    memory usage and network transfer.
-    """
 
     def __init__(self) -> None:
-        """Initialize the repository.
-
-        The repository uses a shared connection pool. Ensure DatabasePool
-        has been initialized before creating repository instances.
-
-        Raises:
-            RuntimeError: If DatabasePool is not initialized.
-        """
         if not DatabasePool.is_initialized():
             raise RuntimeError(
                 "DatabasePool not initialized. Call DatabasePool.initialize() first."
             )
 
     def get_movie_by_id(self, movie_id: int) -> Optional[Movie]:
-        """Get a movie by its ID.
-        
-        Uses direct primary key lookup for O(1) performance.
-
-        Args:
-            movie_id: The movie ID to retrieve.
-
-        Returns:
-            Optional[Movie]: The movie if found, None otherwise.
-        """
         conn = None
         try:
             conn = DatabasePool.get_connection()
@@ -81,21 +53,6 @@ class MoviesRepository:
         genre: Optional[str] = None,
         year: Optional[int] = None,
     ) -> Tuple[List[Movie], int]:
-        """List movies with optional filtering and pagination.
-        
-        All filtering and pagination is performed by PostgreSQL using
-        prepared statements and indexes for optimal performance.
-
-        Args:
-            page: Page number (1-indexed).
-            page_size: Number of items per page.
-            title: Filter by partial title match (case-insensitive).
-            genre: Filter by genre (case-insensitive).
-            year: Filter by year.
-
-        Returns:
-            Tuple[List[Movie], int]: Filtered movies for the page and total count.
-        """
         conn = None
         try:
             conn = DatabasePool.get_connection()
@@ -164,23 +121,6 @@ class MoviesRepository:
         genre: Optional[str] = None,
         year: Optional[int] = None,
     ) -> Tuple[List[Movie], int]:
-        """Search movies by query with optional additional filters.
-        
-        Uses ILIKE for case-insensitive full-text search on title.
-        All filtering and pagination delegated to PostgreSQL.
-
-        Args:
-            query: Search query for title (case-insensitive, partial match).
-            page: Page number (1-indexed).
-            page_size: Number of items per page.
-            genre: Additional genre filter (case-insensitive).
-            year: Additional year filter.
-
-        Returns:
-            Tuple[List[Movie], int]: Search results and total count.
-        """
         return self.list_movies(
             page=page, page_size=page_size, title=query, genre=genre, year=year
         )
-
-
