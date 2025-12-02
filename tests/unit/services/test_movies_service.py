@@ -56,9 +56,19 @@ class TestMoviesServiceGetMovies:
         assert result.page_size >= 1
 
     def test_get_movies_with_title_filter(self, mock_repository):
+        # Setup mock first
+        mock_repository.list_movies.return_value = ([Movie(movie_id=1, title="Toy Story", year=1995, genres=["Animation"])], 1)
+        
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.get_movies(title="Toy")
         
+        # Assert result first
+        assert result is not None
+        
+        # Assert mock call second
         mock_repository.list_movies.assert_called_with(
             page=1,
             page_size=20,
@@ -68,9 +78,19 @@ class TestMoviesServiceGetMovies:
         )
 
     def test_get_movies_with_genre_filter(self, mock_repository):
+        # Setup mock first
+        mock_repository.list_movies.return_value = ([Movie(movie_id=3, title="Heat", year=1995, genres=["Action"])], 1)
+        
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.get_movies(genre="Action")
         
+        # Assert result first
+        assert result is not None
+        
+        # Assert mock call second
         mock_repository.list_movies.assert_called_with(
             page=1,
             page_size=20,
@@ -80,9 +100,19 @@ class TestMoviesServiceGetMovies:
         )
 
     def test_get_movies_with_year_filter(self, mock_repository):
+        # Setup mock first
+        mock_repository.list_movies.return_value = ([Movie(movie_id=1, title="Toy Story", year=1995, genres=["Animation"]), Movie(movie_id=3, title="Heat", year=1995, genres=["Action"])], 2)
+        
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.get_movies(year=1995)
         
+        # Assert result first
+        assert result is not None
+        
+        # Assert mock call second
         mock_repository.list_movies.assert_called_with(
             page=1,
             page_size=20,
@@ -92,9 +122,19 @@ class TestMoviesServiceGetMovies:
         )
 
     def test_get_movies_combined_filters(self, mock_repository):
+        # Setup mock first
+        mock_repository.list_movies.return_value = ([Movie(movie_id=1, title="Toy Story", year=1995, genres=["Animation"])], 1)
+        
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.get_movies(title="Toy", genre="Animation", year=1995)
         
+        # Assert result first
+        assert result is not None
+        
+        # Assert mock call second
         mock_repository.list_movies.assert_called_with(
             page=1,
             page_size=20,
@@ -146,21 +186,51 @@ class TestMoviesServiceSearchMovies:
         assert result.page_size == 10
 
     def test_search_movies_with_genre_filter(self, mock_repository):
+        # Setup mock first
+        mock_repository.search_movies.return_value = ([Movie(movie_id=4, title="Matrix", year=1999, genres=["Sci-Fi", "Action"])], 1)
+        
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.search_movies(query="Matrix", genre="Sci-Fi")
         
+        # Assert result first
+        assert result is not None
+        
+        # Assert mock call second
         mock_repository.search_movies.assert_called()
 
     def test_search_movies_with_year_filter(self, mock_repository):
+        # Setup mock first
+        mock_repository.search_movies.return_value = ([Movie(movie_id=4, title="Matrix", year=1999, genres=["Sci-Fi", "Action"])], 1)
+        
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.search_movies(query="Matrix", year=1999)
         
+        # Assert result first
+        assert result is not None
+        
+        # Assert mock call second
         mock_repository.search_movies.assert_called()
 
     def test_search_movies_combined_filters(self, mock_repository):
+        # Setup mock first
+        mock_repository.search_movies.return_value = ([Movie(movie_id=4, title="Matrix", year=1999, genres=["Sci-Fi", "Action"])], 1)
+        
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.search_movies(query="Matrix", genre="Sci-Fi", year=1999)
         
+        # Assert result first
+        assert result is not None
+        
+        # Assert mock call second
         mock_repository.search_movies.assert_called()
 
     def test_search_movies_empty_query(self, mock_repository):
@@ -189,10 +259,18 @@ class TestMoviesServiceSearchMovies:
 class TestMoviesServiceGetMovie:
 
     def test_get_movie_found(self, mock_repository):
+        # Setup mock first - already configured in fixture, no need to change
+        
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.get_movie(1)
         
+        # Assert result first
         assert result is not None
+        
+        # Assert mock call second
         mock_repository.get_movie_by_id.assert_called_with(1)
 
     def test_get_movie_not_found(self, mock_repository):
@@ -214,19 +292,35 @@ class TestMoviesServiceGetMovie:
             assert hasattr(result, 'genres')
 
     def test_get_movie_with_zero_id(self, mock_repository):
+        # Setup mock first
         mock_repository.get_movie_by_id.return_value = None
         
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.get_movie(0)
         
+        # Assert result first
+        assert result is None
+        
+        # Assert mock call second
         mock_repository.get_movie_by_id.assert_called_with(0)
 
     def test_get_movie_with_negative_id(self, mock_repository):
+        # Setup mock first
         mock_repository.get_movie_by_id.return_value = None
         
+        # Create service
         service = MoviesService(mock_repository)
+        
+        # Get result
         result = service.get_movie(-1)
         
+        # Assert result first
+        assert result is None
+        
+        # Assert mock call second
         mock_repository.get_movie_by_id.assert_called_with(-1)
 
 
